@@ -45,6 +45,7 @@ def _review_items():
             bank_id="hbl",
             language=Language.URDU,
             account_number="123456789",
+            currency="PKR",
         ),
         transactions=[
             Transaction(

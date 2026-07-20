@@ -63,7 +63,12 @@ def test_reconcile_transactions_flags_missing_balance() -> None:
 
 def test_validate_parse_result_attaches_row_flags() -> None:
     parse_result = ParseResult(
-        metadata=StatementMetadata(bank_id="example_bank", language=Language.SPANISH),
+        metadata=StatementMetadata(
+            bank_id="example_bank",
+            language=Language.SPANISH,
+            account_number="123456789",
+            currency="PKR",
+        ),
         transactions=[
             Transaction(
                 transaction_date="2026-01-01",
@@ -84,3 +89,26 @@ def test_validate_parse_result_attaches_row_flags() -> None:
 
     assert validated.review_flags[0].code == "balance_mismatch"
     assert validated.transactions[1].review_flags[0].code == "balance_mismatch"
+
+
+def test_reconcile_transactions_flags_mixed_currency_balance() -> None:
+    transactions = [
+        Transaction(
+            transaction_date="2026-01-01",
+            description="pkr row",
+            amount=Decimal("10.00"),
+            balance=Decimal("10.00"),
+            currency="PKR",
+        ),
+        Transaction(
+            transaction_date="2026-01-02",
+            description="usd row",
+            amount=Decimal("5.00"),
+            balance=Decimal("5.00"),
+            currency="USD",
+        ),
+    ]
+
+    flags = reconcile_transactions(transactions)
+
+    assert flags[0].code == "mixed_currency_balance"

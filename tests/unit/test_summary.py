@@ -8,7 +8,12 @@ from bank_parser.validation.summary import ExportReadiness, summarize_validation
 
 def test_summarize_validation_reports_ready_clean_statement() -> None:
     parse_result = ParseResult(
-        metadata=StatementMetadata(bank_id="hbl", language=Language.URDU),
+        metadata=StatementMetadata(
+            bank_id="hbl",
+            language=Language.URDU,
+            account_number="123456789",
+            currency="PKR",
+        ),
         transactions=[
             Transaction(
                 transaction_date="2026-01-01",
@@ -29,7 +34,12 @@ def test_summarize_validation_reports_ready_clean_statement() -> None:
 
 def test_summarize_validation_reports_warning_only_statement() -> None:
     parse_result = ParseResult(
-        metadata=StatementMetadata(bank_id="hbl", language=Language.URDU),
+        metadata=StatementMetadata(
+            bank_id="hbl",
+            language=Language.URDU,
+            account_number="123456789",
+            currency="PKR",
+        ),
         transactions=[
             Transaction(
                 description="missing date",
@@ -49,7 +59,12 @@ def test_summarize_validation_reports_warning_only_statement() -> None:
 
 def test_summarize_validation_blocks_statement_with_errors() -> None:
     parse_result = ParseResult(
-        metadata=StatementMetadata(bank_id="hbl", language=Language.URDU),
+        metadata=StatementMetadata(
+            bank_id="hbl",
+            language=Language.URDU,
+            account_number="123456789",
+            currency="PKR",
+        ),
         transactions=[
             Transaction(
                 transaction_date="2026-01-01",
@@ -78,7 +93,12 @@ def test_summarize_validation_blocks_statement_with_errors() -> None:
 
 def test_summarize_validation_uses_configurable_policy() -> None:
     parse_result = ParseResult(
-        metadata=StatementMetadata(bank_id="hbl", language=Language.URDU),
+        metadata=StatementMetadata(
+            bank_id="hbl",
+            language=Language.URDU,
+            account_number="123456789",
+            currency="PKR",
+        ),
         transactions=[
             Transaction(
                 transaction_date="2026-01-01",
@@ -103,3 +123,29 @@ def test_summarize_validation_uses_configurable_policy() -> None:
 
     assert summary.export_readiness == ExportReadiness.READY_WITH_WARNINGS
     assert summary.export_ready is True
+
+
+def test_summarize_validation_reports_date_warning() -> None:
+    parse_result = ParseResult(
+        metadata=StatementMetadata(
+            bank_id="hbl",
+            language=Language.URDU,
+            account_number="123456789",
+            currency="PKR",
+            statement_period_start="2026-01-01",
+            statement_period_end="2026-01-31",
+        ),
+        transactions=[
+            Transaction(
+                transaction_date="2026-02-01",
+                description="outside period",
+                amount=Decimal("10.00"),
+                balance=Decimal("10.00"),
+            )
+        ],
+    )
+
+    summary = summarize_validation(validate_parse_result(parse_result))
+
+    assert summary.flag_counts_by_code["transaction_date_outside_period"] == 2
+    assert summary.export_readiness == ExportReadiness.READY_WITH_WARNINGS

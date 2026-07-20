@@ -7,7 +7,12 @@ from bank_parser.core.models import Language, ParseResult, StatementMetadata, Tr
 def test_ai_fallback_gate_accepts_clean_validated_output() -> None:
     result = validate_ai_fallback_result(
         ParseResult(
-            metadata=StatementMetadata(bank_id="hbl", language=Language.URDU),
+            metadata=StatementMetadata(
+                bank_id="hbl",
+                language=Language.URDU,
+                account_number="123456789",
+                currency="PKR",
+            ),
             transactions=[
                 Transaction(
                     transaction_date="2026-01-01",
@@ -27,7 +32,12 @@ def test_ai_fallback_gate_accepts_clean_validated_output() -> None:
 def test_ai_fallback_gate_accepts_warning_only_output_for_review() -> None:
     result = validate_ai_fallback_result(
         ParseResult(
-            metadata=StatementMetadata(bank_id="hbl", language=Language.URDU),
+            metadata=StatementMetadata(
+                bank_id="hbl",
+                language=Language.URDU,
+                account_number="123456789",
+                currency="PKR",
+            ),
             transactions=[
                 Transaction(
                     description="missing date",
@@ -46,7 +56,12 @@ def test_ai_fallback_gate_accepts_warning_only_output_for_review() -> None:
 def test_ai_fallback_gate_rejects_output_that_fails_reconciliation() -> None:
     result = validate_ai_fallback_result(
         ParseResult(
-            metadata=StatementMetadata(bank_id="hbl", language=Language.URDU),
+            metadata=StatementMetadata(
+                bank_id="hbl",
+                language=Language.URDU,
+                account_number="123456789",
+                currency="PKR",
+            ),
             transactions=[
                 Transaction(
                     transaction_date="2026-01-01",

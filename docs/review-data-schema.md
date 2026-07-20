@@ -45,6 +45,11 @@ CREATE TABLE review_queue (
 
 ## Supabase/Postgres Draft
 
+Concrete migration files live in:
+
+- `supabase/migrations/001_review_queue.sql`
+- `supabase/migrations/002_statement_files_storage.sql`
+
 ```sql
 CREATE TABLE review_queue (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -84,3 +89,5 @@ WITH CHECK (auth.uid() = user_id);
 - Keep a transaction snapshot so later parser changes do not alter old reviews.
 - Do not store raw PDF text in review queue rows.
 - Mask account numbers in UI by default.
+- Store private PDFs under `statement-pdfs/{user_id}/{statement_id}.pdf`.
+- Store private exports under `statement-exports/{user_id}/{statement_id}.xlsx`.

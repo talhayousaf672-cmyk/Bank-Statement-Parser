@@ -28,6 +28,17 @@ def test_transaction_adds_unclear_date_review_flag() -> None:
     assert "unclear_date" in {flag.code for flag in transaction.review_flags}
 
 
+def test_transaction_accepts_optional_row_currency() -> None:
+    transaction = Transaction(
+        transaction_date="2026-01-01",
+        description="card settlement",
+        amount=Decimal("10.00"),
+        currency="USD",
+    )
+
+    assert transaction.currency == "USD"
+
+
 def test_transaction_flags_debit_positive_amount() -> None:
     transaction = Transaction(
         transaction_date="2026-01-01",

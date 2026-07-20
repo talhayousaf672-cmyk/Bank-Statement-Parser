@@ -18,6 +18,9 @@ Talha owns this checklist with Umer for the web app handoff.
 - Review queue rows must inherit the same tenant isolation as statements.
 - Rate limits must protect upload, parse, AI fallback, and download endpoints.
 - Backups must follow the same retention policy as the main database.
+- Supabase migrations must be reviewed before production deployment:
+  - `supabase/migrations/001_review_queue.sql`
+  - `supabase/migrations/002_statement_files_storage.sql`
 
 ## Open Decisions
 

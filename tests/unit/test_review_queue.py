@@ -11,6 +11,7 @@ def test_build_review_queue_creates_items_from_validation_flags() -> None:
             bank_id="hbl",
             language=Language.URDU,
             account_number="123456789",
+            currency="PKR",
         ),
         transactions=[
             Transaction(

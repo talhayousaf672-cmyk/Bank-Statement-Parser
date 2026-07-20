@@ -89,6 +89,7 @@ Transaction-level fields:
 | credit | Money in; null if not a credit row |
 | amount | Signed transaction amount; debit is negative, credit is positive |
 | balance | Running balance after the transaction |
+| currency | Transaction currency if shown; otherwise inherits statement currency |
 | confidence | Parser confidence for the row, from 0.0 to 1.0 |
 | review_flags | Issues like missing_balance, unclear_date, ambiguous_amount |
 

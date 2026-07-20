@@ -50,6 +50,7 @@ class Transaction(BaseModel):
     credit: Decimal | None = None
     amount: Decimal
     balance: Decimal | None = None
+    currency: str | None = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     review_flags: list[ReviewFlag] = Field(default_factory=list)
 

@@ -21,12 +21,21 @@ class ValidationPolicy(BaseModel):
             "ambiguous_amount",
             "amount_sign_mismatch",
             "balance_mismatch",
+            "currency_mismatch",
+            "invalid_statement_period",
+            "mixed_currency_balance",
+            "unsupported_currency",
         }
     )
     warning_flag_codes: set[str] = Field(
         default_factory=lambda: {
             "missing_balance",
+            "missing_account_number",
+            "missing_currency",
+            "invalid_account_number",
+            "transaction_date_outside_period",
             "unclear_date",
+            "value_date_before_transaction_date",
         }
     )
 
