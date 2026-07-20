@@ -1,0 +1,16 @@
+.venv/
+.python*/
+
+__pycache__/
+*.py[cod]
+
+.pytest_cache/
+.ruff_cache/
+
+*.egg-info/
+build/
+dist/
+
+python-install.log
+
+TALHA_PROGRESS.md
