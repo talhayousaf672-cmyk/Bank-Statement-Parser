@@ -20,8 +20,8 @@ Supported languages: Arabic, Urdu, Russian, Spanish, Hindi.
 | Person | Role |
 |---|---|
 | Mohsin | Parsing Engine Lead |
-| Umer | Validation & Data Lead |
-| Talha | App & Localization Lead |
+| Talha | Validation & Data Lead |
+| Umer | App & Localization Lead |
 
 ## Roadmap
 

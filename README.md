@@ -21,5 +21,5 @@ pytest
 ## Owners
 
 - Mohsin: parsing engine.
-- Umer: validation and data.
-- Talha: apps, export, localization.
+- Talha: validation and data.
+- Umer: apps, export, localization.
