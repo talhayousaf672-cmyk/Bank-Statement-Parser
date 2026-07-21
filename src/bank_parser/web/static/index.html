@@ -464,6 +464,7 @@
       const sel = document.getElementById('bank-select');
       sel.innerHTML = '';
       const BANK_LABELS = {
+        generic_english: '✨ Auto-Detect',
         hbl:             'HBL — Habib Bank Limited',
         ubl:             'UBL — United Bank Limited',
         meezan_bank:     'Meezan Bank',
@@ -473,14 +474,13 @@
         chase_bank:      'Chase Bank',
         wells_fargo:     'Wells Fargo',
         bank_of_america: 'Bank of America',
-        generic_english: 'Generic English',
-        example_bank:    'Example Bank',
       };
-      // Pakistani banks first, then US
-      const order = ['hbl','ubl','meezan_bank','mcb_bank','allied_bank','bank_alfalah',
-                     'chase_bank','wells_fargo','bank_of_america','generic_english','example_bank'];
+      // Put Auto-Detect first, then Pakistani banks, then US
+      const order = ['generic_english', 'hbl','ubl','meezan_bank','mcb_bank','allied_bank','bank_alfalah',
+                     'chase_bank','wells_fargo','bank_of_america'];
       const seen = new Set();
       [...order, ...data.parsers.map(p => p.bank_id)].forEach(id => {
+        if (id === 'example_bank') return; // Hide example bank
         if (seen.has(id)) return;
         seen.add(id);
         const opt = document.createElement('option');

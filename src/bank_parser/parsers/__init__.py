@@ -7,7 +7,6 @@ from bank_parser.parsers.allied_bank import AlliedBankParser
 from bank_parser.parsers.bank_alfalah import BankAlfalahParser
 from bank_parser.parsers.bank_of_america import BankOfAmericaParser
 from bank_parser.parsers.chase_bank import ChaseBankParser
-from bank_parser.parsers.example_bank import ExampleBankEnglishLikeParser
 from bank_parser.parsers.generic_english import GenericEnglishBankParser
 from bank_parser.parsers.hbl import HBLParser
 from bank_parser.parsers.mcb_bank import MCBParser
@@ -20,7 +19,6 @@ def register_builtin_parsers(registry: ParserRegistry | None = None) -> ParserRe
     """Register all built-in parser classes into a ParserRegistry."""
     target_registry = registry if registry is not None else ParserRegistry()
     # Generic / example
-    target_registry.register(ExampleBankEnglishLikeParser)
     target_registry.register(GenericEnglishBankParser)
     # US banks
     target_registry.register(ChaseBankParser)
