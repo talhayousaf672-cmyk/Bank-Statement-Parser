@@ -15,6 +15,7 @@ class Language(str, Enum):
     RUSSIAN = "ru"
     SPANISH = "es"
     HINDI = "hi"
+    ENGLISH = "en"
 
 
 class ReviewSeverity(str, Enum):
