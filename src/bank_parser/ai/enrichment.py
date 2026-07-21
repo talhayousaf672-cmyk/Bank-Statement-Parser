@@ -28,7 +28,15 @@ For each transaction below, provide a clearer, more descriptive label. Rules:
   PTCL=Pakistan Telecom, MCB=MCB Bank, HBL=HBL Bank, UBL=United Bank
 - TRANSLATE the final human-readable description into {language}.
 
-Return ONLY a JSON array of strings, in the same order as the input. No prose, no markdown.
+Return ONLY a flat JSON array of strings, where each string is the final translated description.
+Do NOT return an array of objects. Do NOT return keys or JSON dicts.
+Example Output:
+[
+  "First translated description",
+  "Second translated description"
+]
+
+No prose, no markdown.
 
 Transactions to enrich:
 {transactions}
@@ -94,7 +102,15 @@ def _call_llama(client, transactions: list[Transaction], language: Language) -> 
     try:
         enriched = json.loads(raw)
         if isinstance(enriched, list) and len(enriched) == len(transactions):
-            return [str(d) for d in enriched]
+            parsed_strings = []
+            for d in enriched:
+                if isinstance(d, dict):
+                    # If it still returns a dict, grab the translated value (usually the last or most relevant key)
+                    val = list(d.values())[-1]
+                    parsed_strings.append(str(val))
+                else:
+                    parsed_strings.append(str(d))
+            return parsed_strings
     except (json.JSONDecodeError, ValueError):
         pass
 
