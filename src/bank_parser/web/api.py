@@ -224,12 +224,18 @@ def get_transactions(statement_id: str) -> dict:
 
 
 @app.post("/api/enrich/{statement_id}")
-def enrich_statement(statement_id: str) -> dict:
+def enrich_statement(statement_id: str, language: str = "en") -> dict:
     """Enrich transaction descriptions using Groq/Llama."""
     result = _get_statement(statement_id)
+    
+    try:
+        lang = Language(language)
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Unsupported language: {language}")
+
     try:
         from bank_parser.ai.enrichment import enrich_descriptions
-        gate = enrich_descriptions(result)
+        gate = enrich_descriptions(result, lang)
         if gate.accepted:
             _statement_store[statement_id] = gate.parse_result
             return {"status": "enriched", "transaction_count": len(gate.parse_result.transactions)}

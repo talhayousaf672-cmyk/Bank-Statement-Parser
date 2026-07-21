@@ -817,7 +817,7 @@
       btn.textContent = 'Enriching\u2026';
       setResultStatus('');
       try {
-        const r = await fetch(`${API}/api/enrich/${statementId}`, { method: 'POST' });
+        const r = await fetch(`${API}/api/enrich/${statementId}?language=${exportLang}`, { method: 'POST' });
         const data = await r.json();
         if (data.status === 'enriched') {
           setResultStatus('Descriptions enriched.');

@@ -14,10 +14,10 @@ import os
 
 from bank_parser.ai.fallback_gate import AiFallbackGateResult, validate_ai_fallback_result
 from bank_parser.ai.groq_client import FAST_MODEL, get_groq_client
-from bank_parser.core.models import ParseResult, Transaction
+from bank_parser.core.models import ParseResult, Transaction, Language
 
 _ENRICH_PROMPT = """\
-You are enriching terse Pakistani and international bank transaction descriptions to be human-readable.
+You are enriching and translating terse Pakistani and international bank transaction descriptions.
 
 For each transaction below, provide a clearer, more descriptive label. Rules:
 - Keep descriptions concise (max 60 characters)
@@ -26,7 +26,7 @@ For each transaction below, provide a clearer, more descriptive label. Rules:
   POS=Point of Sale, ATM=ATM Withdrawal, SAL=Salary, UTIL=Utility, INS=Insurance,
   KEPTA=KESC/K-Electric, LESCO=Lahore Electric Supply, SNGPL=Sui Northern Gas,
   PTCL=Pakistan Telecom, MCB=MCB Bank, HBL=HBL Bank, UBL=United Bank
-- If already clear, return it unchanged
+- TRANSLATE the final human-readable description into {language}.
 
 Return ONLY a JSON array of strings, in the same order as the input. No prose, no markdown.
 
@@ -41,6 +41,7 @@ class EnrichmentUnavailableError(RuntimeError):
 
 def enrich_descriptions(
     parse_result: ParseResult,
+    language: Language,
     api_key: str | None = None,
 ) -> AiFallbackGateResult:
     """Enrich transaction descriptions using Llama via Groq.
@@ -60,7 +61,7 @@ def enrich_descriptions(
     except ValueError as exc:
         raise EnrichmentUnavailableError(str(exc)) from exc
 
-    enriched_descriptions = _call_llama(client, parse_result.transactions)
+    enriched_descriptions = _call_llama(client, parse_result.transactions, language)
 
     enriched_transactions = [
         tx.model_copy(update={"description": new_desc})
@@ -70,13 +71,16 @@ def enrich_descriptions(
     return validate_ai_fallback_result(enriched_result)
 
 
-def _call_llama(client, transactions: list[Transaction]) -> list[str]:
+def _call_llama(client, transactions: list[Transaction], language: Language) -> list[str]:
     """Call Llama-3.1-8B via Groq to enrich descriptions."""
     tx_list = [
         {"description": tx.description, "amount": str(tx.amount)}
         for tx in transactions
     ]
-    prompt = _ENRICH_PROMPT.format(transactions=json.dumps(tx_list, indent=2, ensure_ascii=False))
+    prompt = _ENRICH_PROMPT.format(
+        transactions=json.dumps(tx_list, indent=2, ensure_ascii=False),
+        language=language.name,
+    )
 
     response = client.chat.completions.create(
         model=FAST_MODEL,
