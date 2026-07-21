@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 from bank_parser.ai.fallback_gate import AiFallbackGateResult, validate_ai_fallback_result
 from bank_parser.ai.groq_client import FAST_MODEL, get_groq_client
@@ -92,12 +93,12 @@ def _call_llama(client, transactions: list[Transaction], language: Language) -> 
 
     raw = response.choices[0].message.content.strip()
 
-    # Strip markdown fences if present
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
+    # Extract JSON array using regex in case LLM added conversational text or markdown fences
+    match = re.search(r'\[\s*.*?\s*\]', raw, re.DOTALL)
+    if match:
+        raw = match.group(0)
+    else:
+        raw = raw.strip()
 
     try:
         enriched = json.loads(raw)
