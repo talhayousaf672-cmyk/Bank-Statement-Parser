@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal
 from enum import Enum
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 
 class Language(str, Enum):
@@ -54,6 +54,13 @@ class Transaction(BaseModel):
     currency: str | None = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     review_flags: list[ReviewFlag] = Field(default_factory=list)
+
+    @field_validator("debit", "credit", "amount", "balance", mode="before")
+    @classmethod
+    def strip_commas(cls, v: str | Decimal | None) -> str | Decimal | None:
+        if isinstance(v, str):
+            return v.replace(",", "")
+        return v
 
     @model_validator(mode="after")
     def add_quality_flags(self) -> "Transaction":
