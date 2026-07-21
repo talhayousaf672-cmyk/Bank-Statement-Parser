@@ -1,57 +1,73 @@
-"""AI-assisted bank parser onboarding.
+"""AI-assisted bank parser onboarding using Groq/Llama-70B.
 
-Given a sample of raw/normalized statement text, this module calls the Claude API
-to draft a parser skeleton following the project's BaseBankParser contract.
+Given a sample of normalized statement text, Llama drafts a Python parser skeleton
+following the project's BaseBankParser contract.
 
-The output is Python source code (string) — it is NEVER auto-saved or auto-registered.
-A human MUST review and adapt the draft before using it.
+The output is ALWAYS a string (Python source code).
+It is NEVER auto-saved or auto-registered — a human MUST review it first.
 """
 
 from __future__ import annotations
 
-_PROMPT_TEMPLATE = """\
-You are helping onboard a new bank's statement parser into a Python project.
+from bank_parser.ai.groq_client import DEFAULT_MODEL, get_groq_client
 
-The project uses this base class:
+_PROMPT_TEMPLATE = """\
+You are a Python expert helping onboard a new bank's statement parser.
+
+The project uses this base class (already imported in scope):
 
 ```python
 class BaseBankParser(ABC):
-    bank_id: str        # e.g. "acme_bank"
-    language: Language  # e.g. Language.SPANISH (output language, not input)
+    bank_id: str        # e.g. "mcb_bank"  — snake_case, unique
+    language: Language  # e.g. Language.SPANISH (output language for Excel headers)
 
-    @abstractmethod
     def parse(self, normalized_text: str) -> ParseResult:
         ...
 ```
 
-ParseResult contains:
-- metadata: StatementMetadata (bank_id, language, account_number, account_holder,
-  currency, statement_period_start: date, statement_period_end: date, parser_version)
-- transactions: list[Transaction] (transaction_date, value_date, description, reference,
-  debit, credit, amount, balance, currency, confidence, review_flags)
+Available imports you can use:
+```python
+from decimal import Decimal, InvalidOperation
+from datetime import date
+import re
+from bank_parser.core.models import (
+    Language, ParseResult, ReviewFlag, ReviewSeverity,
+    StatementMetadata, Transaction,
+)
+from bank_parser.core.parser import BaseBankParser
+```
+
+ParseResult fields:
+- metadata: StatementMetadata(bank_id, language, account_number, account_holder,
+    currency, statement_period_start: date, statement_period_end: date)
+- transactions: list[Transaction](transaction_date, value_date, description,
+    reference, debit, credit, amount, balance, currency, confidence, review_flags)
 - review_flags: list[ReviewFlag]
 
-Rules:
-1. Parsers ONLY parse English-input text. Language field controls output Excel headers.
-2. Use Decimal (never float) for all monetary values.
+Rules you MUST follow:
+1. Only parse English-input text. Language field controls output Excel headers.
+2. Use Decimal (NEVER float) for all monetary values.
 3. Debit rows: amount is NEGATIVE; credit rows: amount is POSITIVE.
-4. Emit ReviewFlag for unclear/missing fields. Never silently skip.
-5. Do NOT attempt balance reconciliation (that's Talha's validation layer).
-6. Class name must be <BankName>Parser, file name <bank_id>.py.
+4. Emit ReviewFlag for unclear/missing fields. Never silently skip a row.
+5. Do NOT attempt balance reconciliation (that's a separate validation layer).
+6. Class name must be {class_name}Parser, file name {bank_id}.py.
+7. Skip header rows and opening/closing balance rows.
+8. Include a docstring listing layout assumptions.
 
-Sample statement text (normalized):
+Sample statement text (already normalized — single spaces, no page numbers):
 ---
 {sample_text}
 ---
 
 Bank ID to assign: {bank_id}
 
-Draft a complete, working parser implementation. Include docstring with layout assumptions.
+Write a complete, working Python parser implementation. Return ONLY the Python code.
+No explanations, no markdown fences.
 """
 
 
 class OnboardingUnavailableError(RuntimeError):
-    """Raised when the AI onboarding service is not configured."""
+    """Raised when no GROQ_API_KEY is configured."""
 
 
 def draft_parser_from_sample(
@@ -59,37 +75,44 @@ def draft_parser_from_sample(
     bank_id: str,
     api_key: str | None = None,
 ) -> str:
-    """Ask Claude to draft a parser skeleton for a new bank.
+    """Ask Llama-70B to draft a parser skeleton for a new bank.
+
+    Args:
+        sample_text: Normalized statement text (already through normalize_text()).
+        bank_id: Snake_case bank identifier, e.g. "js_bank".
+        api_key: Groq API key. Falls back to GROQ_API_KEY env var.
 
     Returns:
-        Python source code as a string. DO NOT auto-save or auto-register.
-        Review and adapt before use.
+        Python source code as a string.
 
-    Raises:
-        OnboardingUnavailableError: if api_key is None.
+    Important:
+        DO NOT auto-save or auto-register the output.
+        Always review and test before adding to parsers/__init__.py.
     """
-    if api_key is None:
-        raise OnboardingUnavailableError(
-            "AI onboarding requires a CLAUDE_API_KEY. "
-            "Set the environment variable or pass api_key= explicitly."
-        )
+    try:
+        client = get_groq_client(api_key)
+    except ValueError as exc:
+        raise OnboardingUnavailableError(str(exc)) from exc
 
+    class_name = "".join(word.capitalize() for word in bank_id.split("_"))
     prompt = _PROMPT_TEMPLATE.format(
-        sample_text=sample_text[:3000],  # cap to avoid token overflow
+        sample_text=sample_text[:3000],
         bank_id=bank_id,
+        class_name=class_name,
     )
 
-    # Phase 4.5: implement using the anthropic SDK.
-    # from anthropic import Anthropic
-    # client = Anthropic(api_key=api_key)
-    # message = client.messages.create(
-    #     model="claude-opus-4-5",
-    #     max_tokens=2048,
-    #     messages=[{"role": "user", "content": prompt}],
-    # )
-    # return message.content[0].text
-
-    raise NotImplementedError(
-        "Claude API onboarding assist is not yet implemented. "
-        "Install 'anthropic' and uncomment the API call in draft_parser_from_sample()."
+    response = client.chat.completions.create(
+        model=DEFAULT_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=3000,
+        temperature=0.1,
     )
+
+    code = response.choices[0].message.content.strip()
+
+    # Strip markdown fences if Llama wrapped the code
+    if code.startswith("```"):
+        lines = code.split("\n")
+        code = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+    return code.strip()

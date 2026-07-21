@@ -1,0 +1,15 @@
+MCB BANK LIMITED
+ACCOUNT STATEMENT
+Customer Name: AHMED RAZA
+Account No: 1234567890100
+Currency: PKR
+From: 01/01/2026 To: 31/01/2026
+
+DATE       | PARTICULARS                              | DEBIT      | CREDIT     | BALANCE
+01/01/2026 | Opening Balance                          |            |            | 95000.00
+04/01/2026 | SALARY CREDIT - SAL-2026-001             |            | 130000.00  | 225000.00
+08/01/2026 | UTILITY BILL LESCO - BILL-7723           | 7200.00    |            | 217800.00
+12/01/2026 | ATM CASH WITHDRAWAL FAISAL TOWN - ATM-32 | 25000.00   |            | 192800.00
+16/01/2026 | ONLINE PURCHASE DARAZ - POS-9921         | 8500.00    |            | 184300.00
+21/01/2026 | IBFT RECEIVED FROM UMER - TRF-20260121   |            | 15000.00   | 199300.00
+26/01/2026 | MOBILE BILL JAZZ - MCH-4412              | 1500.00    |            | 197800.00

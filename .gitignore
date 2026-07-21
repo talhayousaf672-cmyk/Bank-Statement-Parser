@@ -34,3 +34,8 @@ docs/phase.md
 *phase*.md
 TALHA_PROGRESS.md
 TALHA_WORK_SUMMARY.md
+
+# Environment / secrets — NEVER commit API keys
+.env
+.env.*
+!.env.example

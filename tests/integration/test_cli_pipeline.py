@@ -100,14 +100,26 @@ def test_ai_fallback_gate_integration():
 
 
 def test_enrichment_raises_without_api_key():
+    import os
     from bank_parser.ai.enrichment import enrich_descriptions, EnrichmentUnavailableError
     text = (FIXTURE_BASE / "hbl" / "en" / "statement_text.txt").read_text(encoding="utf-8")
     result = validate_parse_result(HBLParser().parse(text))
-    with pytest.raises(EnrichmentUnavailableError):
-        enrich_descriptions(result, api_key=None)
+    original_key = os.environ.pop("GROQ_API_KEY", None)
+    try:
+        with pytest.raises(EnrichmentUnavailableError):
+            enrich_descriptions(result, api_key=None)
+    finally:
+        if original_key:
+            os.environ["GROQ_API_KEY"] = original_key
 
 
 def test_onboarding_assist_raises_without_api_key():
+    import os
     from bank_parser.ai.onboarding_assist import draft_parser_from_sample, OnboardingUnavailableError
-    with pytest.raises(OnboardingUnavailableError):
-        draft_parser_from_sample("sample text", "test_bank", api_key=None)
+    original_key = os.environ.pop("GROQ_API_KEY", None)
+    try:
+        with pytest.raises(OnboardingUnavailableError):
+            draft_parser_from_sample("sample text", "test_bank", api_key=None)
+    finally:
+        if original_key:
+            os.environ["GROQ_API_KEY"] = original_key
