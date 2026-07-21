@@ -1,0 +1,93 @@
+{
+  "metadata": {
+    "bank_id": "ubl",
+    "language": "es",
+    "account_number": "0332-1234567-001",
+    "account_holder": "MOHSIN RAZA",
+    "currency": "PKR",
+    "statement_period_start": "2026-01-01",
+    "statement_period_end": "2026-01-31",
+    "parser_version": "0.1.0"
+  },
+  "transactions": [
+    {
+      "transaction_date": "2026-01-03",
+      "value_date": "2026-01-03",
+      "description": "SALARY - NETSOL TECH",
+      "reference": "SAL-00123",
+      "debit": null,
+      "credit": "120000.00",
+      "amount": "120000.00",
+      "balance": "205000.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-07",
+      "value_date": "2026-01-07",
+      "description": "ELECTRICITY BILL - LESCO",
+      "reference": "LESCO-9921",
+      "debit": "6700.00",
+      "credit": null,
+      "amount": "-6700.00",
+      "balance": "198300.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-12",
+      "value_date": "2026-01-12",
+      "description": "ATM WITHDRAWAL GULBERG",
+      "reference": "ATM-4412",
+      "debit": "15000.00",
+      "credit": null,
+      "amount": "-15000.00",
+      "balance": "183300.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-18",
+      "value_date": "2026-01-18",
+      "description": "INTER BANK TRANSFER IN",
+      "reference": "IBT-20260118",
+      "debit": null,
+      "credit": "25000.00",
+      "amount": "25000.00",
+      "balance": "208300.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-25",
+      "value_date": "2026-01-25",
+      "description": "MOBILE RECHARGE - JAZZ",
+      "reference": "MCH-8812",
+      "debit": "500.00",
+      "credit": null,
+      "amount": "-500.00",
+      "balance": "207800.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-29",
+      "value_date": "2026-01-29",
+      "description": "RENT PAYMENT - BAHRIA TOWN",
+      "reference": "RNT-0129",
+      "debit": "35000.00",
+      "credit": null,
+      "amount": "-35000.00",
+      "balance": "172800.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    }
+  ],
+  "review_flags": []
+}

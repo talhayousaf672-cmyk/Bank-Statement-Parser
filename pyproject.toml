@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bank-statement-parser"
-version = "0.1.0"
+version = "1.0.0"
 description = "Shared bank statement PDF parsing core with desktop and web adapters."
 readme = "README.md"
 requires-python = ">=3.11"

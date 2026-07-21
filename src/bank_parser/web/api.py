@@ -6,7 +6,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from bank_parser.core.models import Language, ParseResult
@@ -71,10 +71,18 @@ async def parse_statement(
             detail=f"No parser for bank_id='{bank_id}', language='{language}'. Available: {available}",
         )
 
+    # Security: enforce PDF content type and max file size (10 MB)
+    _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large. Maximum upload size is 10 MB.")
+    if file.content_type not in ("application/pdf", "application/octet-stream"):
+        raise HTTPException(status_code=422, detail="Only PDF files are accepted.")
+
     # Save upload to temp file
     suffix = Path(file.filename or "upload.pdf").suffix or ".pdf"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(await file.read())
+        tmp.write(content)
         tmp_path = Path(tmp.name)
 
     # Extract + normalize
@@ -112,7 +120,11 @@ def validate_statement(statement_id: str) -> ValidationSummary:
 
 
 @app.post("/api/export/{statement_id}")
-def export_statement(statement_id: str, language: str = "en") -> FileResponse:
+def export_statement(
+    statement_id: str,
+    background_tasks: BackgroundTasks,
+    language: str = "en",
+) -> FileResponse:
     """Export a validated statement to XLSX. Returns the file as a download."""
     result = _get_statement(statement_id)
 
@@ -133,6 +145,8 @@ def export_statement(statement_id: str, language: str = "en") -> FileResponse:
 
     bank_id = result.metadata.bank_id
     filename = f"{bank_id}_{statement_id[:8]}.xlsx"
+    # Security: delete temp file after response is sent
+    background_tasks.add_task(out_path.unlink, missing_ok=True)
     return FileResponse(
         path=str(out_path),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

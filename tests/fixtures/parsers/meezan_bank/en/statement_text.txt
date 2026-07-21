@@ -1,0 +1,17 @@
+MEEZAN BANK LIMITED
+CURRENT ACCOUNT STATEMENT
+Account Title: TALHA YOUSUF
+Account No: 01010123456789
+IBAN: PK57MEZN0001010123456789
+Currency: PKR
+Statement Date: 31-Jan-2026
+From: 01-Jan-2026   To: 31-Jan-2026
+
+Date       | Narration                         | Cheque/Ref No | Debit      | Credit     | Balance
+01/01/2026 | OPENING BALANCE                   |               |            |            | 200000.00
+02/01/2026 | MUSHARAKAH PROFIT                 | PRF-20260102  |            | 1500.00    | 201500.00
+06/01/2026 | SALARY - SYSTEMS LTD              | SAL-0060126   |            | 180000.00  | 381500.00
+09/01/2026 | TAKAFUL PREMIUM                   | TKF-2026009   | 8000.00    |            | 373500.00
+14/01/2026 | POS PURCHASE - HYPERSTAR          | POS-7744      | 22000.00   |            | 351500.00
+20/01/2026 | IBFT RECEIVED - UMER KASHIF       | IBF-20260120  |            | 10000.00   | 361500.00
+27/01/2026 | UTILITY - SNGPL GAS               | GAS-4455      | 4500.00    |            | 357000.00

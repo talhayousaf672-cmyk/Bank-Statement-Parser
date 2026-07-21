@@ -1,0 +1,14 @@
+STATEMENT OF ACCOUNT
+HBL - Habib Bank Limited
+Account Title: UMER KASHIF
+Account Number: PK36HABB0000123456789012
+Currency: PKR
+Statement Period: 01 Jan 2026 To 31 Jan 2026
+
+DATE        | VALUE DATE | DESCRIPTION                   | REFERENCE       | DEBIT      | CREDIT     | BALANCE
+01-Jan-2026 | 01-Jan-2026 | SALARY CREDIT                | SAL-2026-001    |            | 150000.00  | 150000.00
+05-Jan-2026 | 05-Jan-2026 | UTILITY BILL PAYMENT - KEPTA | BILL-4521       | 8500.00    |            | 141500.00
+10-Jan-2026 | 10-Jan-2026 | ATM CASH WITHDRAWAL          | ATM-9988        | 20000.00   |            | 121500.00
+15-Jan-2026 | 15-Jan-2026 | FUND TRANSFER RECEIVED       | TRF-2026-0115   |            | 50000.00   | 171500.00
+22-Jan-2026 | 22-Jan-2026 | INSURANCE PREMIUM            | INS-2026-001    | 5000.00    |            | 166500.00
+28-Jan-2026 | 28-Jan-2026 | ONLINE SHOPPING - DARAZ      | POS-7741        | 12000.00   |            | 154500.00
