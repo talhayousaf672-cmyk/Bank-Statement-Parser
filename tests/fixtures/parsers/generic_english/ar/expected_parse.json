@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "bank_id": "generic_english",
+    "language": "ar",
+    "account_number": "9988776655",
+    "currency": "AED",
+    "statement_period": "2026-02-01 to 2026-02-28"
+  },
+  "transactions": [
+    {
+      "transaction_date": "2026-02-01",
+      "value_date": null,
+      "description": "Initial Deposit",
+      "reference": "REF8001",
+      "debit": null,
+      "credit": "5000.00",
+      "amount": "5000.00",
+      "balance": "5000.00",
+      "currency": "AED",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-02-15",
+      "value_date": null,
+      "description": "Equipment Purchase",
+      "reference": "REF8002",
+      "debit": "1200.00",
+      "credit": null,
+      "amount": "-1200.00",
+      "balance": "3800.00",
+      "currency": "AED",
+      "confidence": 1.0,
+      "review_flags": []
+    }
+  ],
+  "review_flags": [],
+  "parser_version": "0.1.0"
+}

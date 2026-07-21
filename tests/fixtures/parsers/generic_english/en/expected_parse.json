@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "bank_id": "generic_english",
+    "language": "es",
+    "account_number": "1234567890",
+    "currency": "USD",
+    "statement_period": "2026-01-01 to 2026-01-31"
+  },
+  "transactions": [
+    {
+      "transaction_date": "2026-01-05",
+      "value_date": null,
+      "description": "Opening Balance Deposit",
+      "reference": "REF1001",
+      "debit": null,
+      "credit": "1000.00",
+      "amount": "1000.00",
+      "balance": "1000.00",
+      "currency": "USD",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-10",
+      "value_date": null,
+      "description": "Software Subscription",
+      "reference": "REF1002",
+      "debit": "50.00",
+      "credit": null,
+      "amount": "-50.00",
+      "balance": "950.00",
+      "currency": "USD",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-15",
+      "value_date": null,
+      "description": "Consulting Fee Received",
+      "reference": "REF1003",
+      "debit": null,
+      "credit": "500.00",
+      "amount": "500.00",
+      "balance": "1450.00",
+      "currency": "USD",
+      "confidence": 1.0,
+      "review_flags": []
+    }
+  ],
+  "review_flags": [],
+  "parser_version": "0.1.0"
+}
