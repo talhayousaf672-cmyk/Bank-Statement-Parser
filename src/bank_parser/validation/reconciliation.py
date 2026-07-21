@@ -72,6 +72,16 @@ def validate_parse_result(
     Normal statement quality issues are recorded as review flags so UI layers can
     show them without the parser silently accepting uncertain rows.
     """
+    if _is_reverse_chronological(parse_result.transactions, tolerance):
+        parse_result.transactions.reverse()
+        parse_result.review_flags.append(
+            ReviewFlag(
+                code="reversed_chronological",
+                message="Statement was detected as reverse chronological and reordered to chronological.",
+                severity=ReviewSeverity.INFO,
+            )
+        )
+
     validation_flags = validate_account_metadata(parse_result)
     validation_flags.extend(validate_currencies(parse_result))
     validation_flags.extend(validate_dates(parse_result))
@@ -95,3 +105,21 @@ def _effective_currency(transaction: Transaction) -> str | None:
     if transaction.currency is None:
         return None
     return transaction.currency.strip().upper() or None
+
+def _is_reverse_chronological(transactions: list[Transaction], tolerance: Decimal) -> bool:
+    if len(transactions) < 2:
+        return False
+        
+    standard_matches = 0
+    reverse_matches = 0
+    
+    for i in range(len(transactions) - 1):
+        tx1 = transactions[i]
+        tx2 = transactions[i+1]
+        if tx1.balance is not None and tx2.balance is not None:
+            if abs((tx1.balance + tx2.amount) - tx2.balance) <= tolerance:
+                standard_matches += 1
+            if abs((tx2.balance + tx1.amount) - tx1.balance) <= tolerance:
+                reverse_matches += 1
+                
+    return reverse_matches > 0 and reverse_matches > standard_matches
