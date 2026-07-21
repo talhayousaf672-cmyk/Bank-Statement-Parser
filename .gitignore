@@ -24,3 +24,8 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Documentation & Phases
+docs/phase.md
+*phase*.md
+
