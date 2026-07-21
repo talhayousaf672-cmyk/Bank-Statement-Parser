@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bank Statement Parser</title>
+  <meta name="description" content="Parse, validate, and export multilingual bank statement PDFs." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --black:    #111111;
+      --gray-8:   #333333;
+      --gray-6:   #666666;
+      --gray-4:   #999999;
+      --gray-2:   #cccccc;
+      --gray-1:   #e5e5e5;
+      --gray-0:   #f5f5f5;
+      --white:    #ffffff;
+      --red:      #b91c1c;
+      --amber:    #92400e;
+      --green:    #166534;
+      --font:     'Inter', system-ui, sans-serif;
+      --mono:     'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--white);
+      color: var(--black);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ── */
+    .site-header {
+      border-bottom: 1px solid var(--gray-1);
+      padding: 0 32px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .site-header .wordmark {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      color: var(--black);
+    }
+    .site-header .version {
+      font-size: 12px;
+      color: var(--gray-4);
+      font-family: var(--mono);
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 32px 96px;
+    }
+
+    /* ── Section heading ── */
+    .section-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gray-4);
+      margin-bottom: 16px;
+    }
+
+    /* ── Upload zone ── */
+    #drop-zone {
+      border: 1px dashed var(--gray-2);
+      padding: 40px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      margin-bottom: 24px;
+    }
+    #drop-zone:hover, #drop-zone.dragover {
+      border-color: var(--black);
+      background: var(--gray-0);
+    }
+    #drop-zone input[type="file"] { display: none; }
+    #drop-zone .drop-title {
+      font-size: 14px;
+      color: var(--gray-6);
+    }
+    #drop-zone .drop-title strong {
+      color: var(--black);
+      font-weight: 500;
+    }
+    #drop-zone .drop-sub {
+      font-size: 12px;
+      color: var(--gray-4);
+      margin-top: 6px;
+    }
+    #file-name {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--black);
+      margin-top: 10px;
+    }
+
+    /* ── Form row ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .form-field label {
+      display: block;
+      font-size: 12px;
+      color: var(--gray-6);
+      margin-bottom: 6px;
+    }
+    .form-field select,
+    .form-field input {
+      width: 100%;
+      height: 36px;
+      border: 1px solid var(--gray-1);
+      padding: 0 10px;
+      font-size: 13px;
+      font-family: var(--font);
+      color: var(--black);
+      background: var(--white);
+      appearance: none;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-field select:focus,
+    .form-field input:focus {
+      border-color: var(--black);
+    }
+    /* Custom select arrow */
+    .select-wrap { position: relative; }
+    .select-wrap::after {
+      content: '';
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid var(--gray-4);
+      pointer-events: none;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      height: 36px;
+      padding: 0 16px;
+      font-size: 13px;
+      font-family: var(--font);
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+      outline: none;
+      transition: opacity 0.1s;
+    }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-primary {
+      background: var(--black);
+      color: var(--white);
+      border-color: var(--black);
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.75; }
+    .btn-secondary {
+      background: var(--white);
+      color: var(--black);
+      border-color: var(--gray-1);
+    }
+    .btn-secondary:hover:not(:disabled) { border-color: var(--black); }
+
+    .actions { display: flex; gap: 10px; align-items: center; }
+
+    /* ── Status bar ── */
+    #status-bar {
+      font-size: 12px;
+      color: var(--gray-6);
+      font-family: var(--mono);
+      min-height: 20px;
+    }
+    .status-error { color: var(--red); }
+
+    /* ── Divider ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--gray-1);
+      margin: 40px 0;
+    }
+
+    /* ── Summary strip ── */
+    #summary-strip {
+      display: none;
+      gap: 32px;
+      margin-bottom: 32px;
+      align-items: baseline;
+    }
+    #summary-strip.visible { display: flex; }
+    .stat { display: flex; flex-direction: column; gap: 2px; }
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      color: var(--black);
+    }
+    .stat-label {
+      font-size: 11px;
+      color: var(--gray-4);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .readiness-badge {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border: 1px solid;
+    }
+    .badge-ready     { color: var(--green); border-color: var(--green); }
+    .badge-warning   { color: var(--amber); border-color: var(--amber); }
+    .badge-blocked   { color: var(--red);   border-color: var(--red);   }
+
+    /* ── Table ── */
+    .table-wrap {
+      overflow-x: auto;
+      margin-bottom: 24px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--gray-4);
+      padding: 0 12px 10px 0;
+      border-bottom: 1px solid var(--gray-1);
+      white-space: nowrap;
+    }
+    thead th.num { text-align: right; }
+    tbody tr {
+      border-bottom: 1px solid var(--gray-0);
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td {
+      padding: 9px 12px 9px 0;
+      color: var(--black);
+      vertical-align: middle;
+    }
+    tbody td.mono {
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    tbody td.num {
+      text-align: right;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    tbody td.debit  { color: var(--red); }
+    tbody td.credit { color: var(--green); }
+    tbody td.muted  { color: var(--gray-4); }
+    .flag-dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      background: var(--amber);
+      border-radius: 50%;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    /* ── Flags section ── */
+    #flags-section { display: none; margin-top: 32px; }
+    #flags-section.visible { display: block; }
+    .flag-row-sev-error   { color: var(--red); }
+    .flag-row-sev-warning { color: var(--amber); }
+
+    /* ── Result actions ── */
+    #result-actions {
+      display: none;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    #result-actions.visible { display: flex; }
+
+    /* ── Loading spinner (pure CSS, no JS library) ── */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid var(--gray-2);
+      border-top-color: var(--black);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Empty state ── */
+    .empty { color: var(--gray-4); font-size: 13px; padding: 24px 0; }
+
+    /* ── Metadata strip ── */
+    #meta-strip {
+      display: none;
+      font-size: 12px;
+      color: var(--gray-6);
+      font-family: var(--mono);
+      gap: 24px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    #meta-strip.visible { display: flex; }
+    .meta-item span { color: var(--gray-4); }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wordmark">Bank Statement Parser</div>
+  <div class="version">v1.0.0</div>
+</header>
+
+<main>
+
+  <!-- ── Step 1: Input ── -->
+  <p class="section-label">Input</p>
+
+  <div id="drop-zone" role="button" tabindex="0" aria-label="Upload PDF">
+    <input type="file" id="file-input" accept=".pdf" />
+    <div class="drop-title"><strong>Drop a PDF here</strong> or click to browse</div>
+    <div class="drop-sub">Max 10 MB. English-input bank statements only.</div>
+    <div id="file-name"></div>
+  </div>
+
+  <div class="form-grid">
+    <div class="form-field">
+      <label for="bank-select">Bank</label>
+      <div class="select-wrap">
+        <select id="bank-select">
+          <option value="">Loading banks...</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-field">
+      <label for="lang-select">Output Language</label>
+      <div class="select-wrap">
+        <select id="lang-select">
+          <option value="ar">Arabic</option>
+          <option value="ur">Urdu</option>
+          <option value="ru">Russian</option>
+          <option value="es" selected>Spanish</option>
+          <option value="hi">Hindi</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-bottom: 12px;">
+    <button class="btn btn-primary" id="parse-btn" disabled>Parse Statement</button>
+    <div id="status-bar"></div>
+  </div>
+
+  <!-- ── Step 2: Results ── -->
+  <hr class="divider" id="results-divider" style="display:none" />
+
+  <div id="summary-strip">
+    <div class="stat">
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-label">Transactions</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="stat-clean">—</div>
+      <div class="stat-label">Clean</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="stat-warn">—</div>
+      <div class="stat-label">Warnings</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="stat-err">—</div>
+      <div class="stat-label">Errors</div>
+    </div>
+    <div style="flex:1"></div>
+    <div id="readiness-badge" class="readiness-badge"></div>
+  </div>
+
+  <div id="meta-strip">
+    <div class="meta-item"><span>Bank &nbsp;</span><span id="meta-bank">—</span></div>
+    <div class="meta-item"><span>Account &nbsp;</span><span id="meta-acct">—</span></div>
+    <div class="meta-item"><span>Currency &nbsp;</span><span id="meta-ccy">—</span></div>
+    <div class="meta-item"><span>Period &nbsp;</span><span id="meta-period">—</span></div>
+  </div>
+
+  <p class="section-label" id="txn-label" style="display:none">Transactions</p>
+
+  <div class="table-wrap" id="txn-table-wrap" style="display:none">
+    <table id="txn-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Date</th>
+          <th>Description</th>
+          <th>Reference</th>
+          <th class="num">Debit</th>
+          <th class="num">Credit</th>
+          <th class="num">Balance</th>
+        </tr>
+      </thead>
+      <tbody id="txn-body"></tbody>
+    </table>
+  </div>
+
+  <div id="flags-section">
+    <p class="section-label">Review Flags</p>
+    <div class="table-wrap">
+      <table id="flags-table">
+        <thead>
+          <tr>
+            <th>Row</th>
+            <th>Code</th>
+            <th>Severity</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody id="flags-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="result-actions">
+    <button class="btn btn-primary" id="export-btn" disabled>Export to Excel</button>
+    <button class="btn btn-secondary" id="enrich-btn" disabled>Enrich with AI</button>
+    <div id="result-status" style="font-size:12px; color: var(--gray-6); font-family: var(--mono);"></div>
+  </div>
+
+</main>
+
+<script>
+  const API = '';  // same origin — empty string means relative URLs
+  let statementId = null;
+  let exportLang = 'es';
+
+  // ── Fetch parsers on load ──────────────────────────────────────────────────
+  async function loadParsers() {
+    try {
+      const r = await fetch(`${API}/api/parsers`);
+      const data = await r.json();
+      const sel = document.getElementById('bank-select');
+      sel.innerHTML = '';
+      const BANK_LABELS = {
+        hbl:             'HBL — Habib Bank Limited',
+        ubl:             'UBL — United Bank Limited',
+        meezan_bank:     'Meezan Bank',
+        mcb_bank:        'MCB Bank',
+        allied_bank:     'Allied Bank Limited',
+        bank_alfalah:    'Bank Alfalah',
+        chase_bank:      'Chase Bank',
+        wells_fargo:     'Wells Fargo',
+        bank_of_america: 'Bank of America',
+        generic_english: 'Generic English',
+        example_bank:    'Example Bank',
+      };
+      // Pakistani banks first, then US
+      const order = ['hbl','ubl','meezan_bank','mcb_bank','allied_bank','bank_alfalah',
+                     'chase_bank','wells_fargo','bank_of_america','generic_english','example_bank'];
+      const seen = new Set();
+      [...order, ...data.parsers.map(p => p.bank_id)].forEach(id => {
+        if (seen.has(id)) return;
+        seen.add(id);
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = BANK_LABELS[id] || id;
+        sel.appendChild(opt);
+      });
+    } catch (e) {
+      document.getElementById('bank-select').innerHTML =
+        '<option value="generic_english">Generic English</option>';
+    }
+  }
+  loadParsers();
+
+  // ── File drop / pick ───────────────────────────────────────────────────────
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const parseBtn  = document.getElementById('parse-btn');
+  const fileNameEl = document.getElementById('file-name');
+  let selectedFile = null;
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type === 'application/pdf') setFile(f);
+    else setStatus('Only PDF files are accepted.', true);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) setFile(fileInput.files[0]);
+  });
+
+  function setFile(f) {
+    selectedFile = f;
+    fileNameEl.textContent = f.name;
+    parseBtn.disabled = false;
+    clearResults();
+    setStatus('');
+  }
+
+  // ── Status helper ──────────────────────────────────────────────────────────
+  function setStatus(msg, isError = false) {
+    const el = document.getElementById('status-bar');
+    el.textContent = msg;
+    el.className = isError ? 'status-error' : '';
+  }
+
+  function setResultStatus(msg) {
+    document.getElementById('result-status').textContent = msg;
+  }
+
+  // ── Parse ──────────────────────────────────────────────────────────────────
+  parseBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    const bankId = document.getElementById('bank-select').value;
+    exportLang   = document.getElementById('lang-select').value;
+
+    clearResults();
+    parseBtn.disabled = true;
+    setStatus('Parsing\u2026');
+
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+
+    try {
+      const r = await fetch(`${API}/api/parse?bank_id=${bankId}&language=${exportLang}`, {
+        method: 'POST', body: fd,
+      });
+      const data = await r.json();
+      if (!r.ok) { setStatus(data.detail || 'Parse failed.', true); return; }
+
+      statementId = data.statement_id;
+      setStatus('');
+      showSummary(data);
+      await loadTransactions();
+      await loadFlags();
+
+    } catch(e) {
+      setStatus(`Network error: ${e.message}`, true);
+    } finally {
+      parseBtn.disabled = false;
+    }
+  });
+
+  function showSummary(data) {
+    document.getElementById('results-divider').style.display = '';
+    const strip = document.getElementById('summary-strip');
+    strip.classList.add('visible');
+
+    document.getElementById('stat-total').textContent = data.transaction_count;
+    const clean = data.transaction_count - data.warning_rows - data.error_rows;
+    document.getElementById('stat-clean').textContent = Math.max(0, clean);
+    document.getElementById('stat-warn').textContent  = data.warning_rows;
+    document.getElementById('stat-err').textContent   = data.error_rows;
+
+    const badge = document.getElementById('readiness-badge');
+    const r = data.export_readiness;
+    badge.textContent = r.replace(/_/g, ' ');
+    badge.className   = 'readiness-badge';
+    if (r === 'ready')              badge.classList.add('badge-ready');
+    else if (r === 'ready_with_warnings') badge.classList.add('badge-warning');
+    else                            badge.classList.add('badge-blocked');
+
+    const exportBtn = document.getElementById('export-btn');
+    exportBtn.disabled = (r === 'blocked');
+    document.getElementById('enrich-btn').disabled = false;
+    document.getElementById('result-actions').classList.add('visible');
+  }
+
+  // ── Load transactions ──────────────────────────────────────────────────────
+  async function loadTransactions() {
+    const r = await fetch(`${API}/api/transactions/${statementId}`);
+    const data = await r.json();
+
+    // Metadata strip
+    const meta = data.metadata;
+    document.getElementById('meta-bank').textContent   = meta.bank_id.replace(/_/g,' ');
+    document.getElementById('meta-acct').textContent   = meta.account_number || '—';
+    document.getElementById('meta-ccy').textContent    = meta.currency || '—';
+    const ps = meta.statement_period_start, pe = meta.statement_period_end;
+    document.getElementById('meta-period').textContent =
+      (ps && pe) ? `${ps} / ${pe}` : (ps || pe || '—');
+    document.getElementById('meta-strip').classList.add('visible');
+
+    const tbody = document.getElementById('txn-body');
+    tbody.innerHTML = '';
+
+    if (!data.transactions.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions found.</td></tr>';
+    } else {
+      data.transactions.forEach(tx => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="mono muted">${tx.row}</td>
+          <td class="mono">${tx.date || '—'}</td>
+          <td>${tx.flags > 0 ? '<span class="flag-dot"></span>' : ''}${esc(tx.description)}</td>
+          <td class="muted">${esc(tx.reference || '')}</td>
+          <td class="num debit">${tx.debit ? fmt(tx.debit) : ''}</td>
+          <td class="num credit">${tx.credit ? fmt(tx.credit) : ''}</td>
+          <td class="num">${tx.balance ? fmt(tx.balance) : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('txn-label').style.display = '';
+    document.getElementById('txn-table-wrap').style.display = '';
+  }
+
+  // ── Load flags ─────────────────────────────────────────────────────────────
+  async function loadFlags() {
+    const r = await fetch(`${API}/api/review/${statementId}`);
+    const data = await r.json();
+
+    if (!data.item_count) return;
+
+    const tbody = document.getElementById('flags-body');
+    tbody.innerHTML = '';
+    data.items.forEach(item => {
+      const sev = item.flag.severity;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="mono muted">${item.row_number ?? '—'}</td>
+        <td class="mono">${esc(item.flag.code)}</td>
+        <td class="flag-row-sev-${sev}">${sev}</td>
+        <td>${esc(item.flag.message)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    document.getElementById('flags-section').classList.add('visible');
+  }
+
+  // ── Export ─────────────────────────────────────────────────────────────────
+  document.getElementById('export-btn').addEventListener('click', async () => {
+    if (!statementId) return;
+    setResultStatus('Exporting\u2026');
+    try {
+      const r = await fetch(`${API}/api/export/${statementId}?language=${exportLang}`, { method: 'POST' });
+      if (!r.ok) {
+        const d = await r.json();
+        setResultStatus(`Export failed: ${d.detail}`);
+        return;
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = r.headers.get('content-disposition')?.split('filename=')[1]?.replace(/"/g,'')
+                   || `statement_${statementId.slice(0,8)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setResultStatus('Downloaded.');
+    } catch(e) {
+      setResultStatus(`Error: ${e.message}`);
+    }
+  });
+
+  // ── Enrich ─────────────────────────────────────────────────────────────────
+  document.getElementById('enrich-btn').addEventListener('click', async () => {
+    if (!statementId) return;
+    const btn = document.getElementById('enrich-btn');
+    btn.disabled = true;
+    btn.textContent = 'Enriching\u2026';
+    setResultStatus('');
+    try {
+      const r = await fetch(`${API}/api/enrich/${statementId}`, { method: 'POST' });
+      const data = await r.json();
+      if (data.status === 'enriched') {
+        setResultStatus('Descriptions enriched.');
+        await loadTransactions();
+      } else {
+        setResultStatus(`Not enriched: ${data.reason || 'unknown'}`);
+      }
+    } catch(e) {
+      setResultStatus(`Error: ${e.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enrich with AI';
+    }
+  });
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function clearResults() {
+    statementId = null;
+    document.getElementById('results-divider').style.display = 'none';
+    document.getElementById('summary-strip').classList.remove('visible');
+    document.getElementById('meta-strip').classList.remove('visible');
+    document.getElementById('txn-label').style.display = 'none';
+    document.getElementById('txn-table-wrap').style.display = 'none';
+    document.getElementById('txn-body').innerHTML = '';
+    document.getElementById('flags-body').innerHTML = '';
+    document.getElementById('flags-section').classList.remove('visible');
+    document.getElementById('result-actions').classList.remove('visible');
+    setResultStatus('');
+  }
+
+  function esc(str) {
+    return String(str || '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function fmt(numStr) {
+    const n = parseFloat(numStr);
+    if (isNaN(n)) return numStr;
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+</script>
+</body>
+</html>

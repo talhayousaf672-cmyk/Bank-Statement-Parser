@@ -7,7 +7,9 @@ import uuid
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from bank_parser.core.models import Language, ParseResult
 from bank_parser.core.pdf_extractor import PdfExtractionError, extract_text_blocks
@@ -24,8 +26,22 @@ app = FastAPI(
         "Parse, validate, and export multilingual bank statement PDFs. "
         "All AI output is gated through validation before export."
     ),
-    version="0.1.0",
+    version="1.0.0",
 )
+
+# CORS — allow the frontend (same origin or dev localhost)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # restrict to specific domain in production
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve frontend static files
+_STATIC_DIR = Path(__file__).parent / "static"
+_STATIC_DIR.mkdir(exist_ok=True)
+if (_STATIC_DIR / "index.html").exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 _registry = register_builtin_parsers()
 
@@ -33,9 +49,18 @@ _registry = register_builtin_parsers()
 _statement_store: dict[str, ParseResult] = {}
 
 
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def root():
+    """Serve the frontend."""
+    html_path = _STATIC_DIR / "index.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+    return HTMLResponse(content="<p>Frontend not found. Run the API at <a href='/docs'>/docs</a>.</p>")
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "1.0.0"}
 
 
 @app.get("/api/parsers")
@@ -152,6 +177,47 @@ def export_statement(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=filename,
     )
+
+
+@app.get("/api/transactions/{statement_id}")
+def get_transactions(statement_id: str) -> dict:
+    """Return all parsed transactions for a statement."""
+    result = _get_statement(statement_id)
+    return {
+        "statement_id": statement_id,
+        "metadata": result.metadata.model_dump(mode="json"),
+        "transactions": [
+            {
+                "row": i + 1,
+                "date": str(tx.transaction_date) if tx.transaction_date else None,
+                "description": tx.description,
+                "reference": tx.reference,
+                "debit": str(tx.debit) if tx.debit is not None else None,
+                "credit": str(tx.credit) if tx.credit is not None else None,
+                "balance": str(tx.balance) if tx.balance is not None else None,
+                "currency": tx.currency,
+                "confidence": tx.confidence,
+                "flags": len(tx.review_flags),
+            }
+            for i, tx in enumerate(result.transactions)
+        ],
+    }
+
+
+@app.post("/api/enrich/{statement_id}")
+def enrich_statement(statement_id: str) -> dict:
+    """Enrich transaction descriptions using Groq/Llama."""
+    result = _get_statement(statement_id)
+    try:
+        from bank_parser.ai.enrichment import enrich_descriptions
+        gate = enrich_descriptions(result)
+        if gate.accepted:
+            _statement_store[statement_id] = gate.parse_result
+            return {"status": "enriched", "transaction_count": len(gate.parse_result.transactions)}
+        return {"status": "rejected", "reason": "AI output failed validation gate"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 
 @app.get("/api/review/{statement_id}")
