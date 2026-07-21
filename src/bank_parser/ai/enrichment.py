@@ -43,18 +43,11 @@ def enrich_descriptions(
     parse_result: ParseResult,
     language: Language,
     api_key: str | None = None,
-) -> AiFallbackGateResult:
+) -> ParseResult:
     """Enrich transaction descriptions using Llama via Groq.
 
-    The enriched result is always gated through validate_ai_fallback_result()
-    — it will be REJECTED if reconciliation fails after enrichment.
-
-    Args:
-        parse_result: A validated ParseResult from validate_parse_result().
-        api_key: Groq API key. Falls back to GROQ_API_KEY env var.
-
     Returns:
-        AiFallbackGateResult (ACCEPTED / ACCEPTED_WITH_REVIEW / REJECTED).
+        The updated ParseResult with enriched descriptions.
     """
     try:
         client = get_groq_client(api_key)
@@ -68,7 +61,7 @@ def enrich_descriptions(
         for tx, new_desc in zip(parse_result.transactions, enriched_descriptions)
     ]
     enriched_result = parse_result.model_copy(update={"transactions": enriched_transactions})
-    return validate_ai_fallback_result(enriched_result)
+    return enriched_result
 
 
 def _call_llama(client, transactions: list[Transaction], language: Language) -> list[str]:

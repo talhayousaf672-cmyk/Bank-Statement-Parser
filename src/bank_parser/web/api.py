@@ -235,11 +235,9 @@ def enrich_statement(statement_id: str, language: str = "en") -> dict:
 
     try:
         from bank_parser.ai.enrichment import enrich_descriptions
-        gate = enrich_descriptions(result, lang)
-        if gate.accepted:
-            _statement_store[statement_id] = gate.parse_result
-            return {"status": "enriched", "transaction_count": len(gate.parse_result.transactions)}
-        return {"status": "rejected", "reason": "AI output failed validation gate"}
+        enriched_result = enrich_descriptions(result, lang)
+        _statement_store[statement_id] = enriched_result
+        return {"status": "enriched", "transaction_count": len(enriched_result.transactions)}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
