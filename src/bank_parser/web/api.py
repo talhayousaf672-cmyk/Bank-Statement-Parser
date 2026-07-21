@@ -6,6 +6,9 @@ import tempfile
 import uuid
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
@@ -19,6 +22,7 @@ from bank_parser.parsers import register_builtin_parsers
 from bank_parser.validation.reconciliation import validate_parse_result
 from bank_parser.validation.review_queue import ReviewQueueItem, build_review_queue
 from bank_parser.validation.summary import ValidationSummary, summarize_validation
+from bank_parser.ai.fallback_extractor import extract_with_fallback
 
 app = FastAPI(
     title="Bank Statement Parser API",
@@ -119,8 +123,26 @@ async def parse_statement(
     normalized = normalize_text("\n".join(b.text for b in blocks))
     parse_result = parser.parse(normalized)
 
-    # Validate and store
+    # Validate deterministic result
     parse_result = validate_parse_result(parse_result)
+    
+    # Try AI Fallback if needed
+    try:
+        fallback_gate = extract_with_fallback(
+            normalized,
+            bank_id,
+            language=Language.SPANISH,
+            existing_result=parse_result,
+        )
+        if fallback_gate and fallback_gate.accepted:
+            parse_result = fallback_gate.parse_result
+    except Exception as exc:
+        import traceback
+        trace_str = "".join(traceback.format_exception(None, exc, exc.__traceback__))
+        raise HTTPException(
+            status_code=500, 
+            detail=f"AI Fallback failed: {str(exc)}\n\nTraceback:\n{trace_str}"
+        )
     statement_id = str(uuid.uuid4())
     _statement_store[statement_id] = parse_result
 
