@@ -77,23 +77,20 @@ def list_parsers() -> dict[str, list[dict]]:
 async def parse_statement(
     file: UploadFile = File(...),
     bank_id: str = "generic_english",
-    language: str = "en",
 ) -> dict:
     """Upload a PDF and parse it. Returns a statement_id for downstream calls."""
-    # Validate language
-    try:
-        lang = Language(language)
-    except ValueError:
-        raise HTTPException(status_code=422, detail=f"Unsupported language: {language}")
+    # Find the parser for this bank_id, ignoring input language for now
+    parser = None
+    for b, l in _registry.list_parsers():
+        if b == bank_id:
+            parser = _registry.create(bank_id, l)
+            break
 
-    # Validate bank_id
-    try:
-        parser = _registry.create(bank_id, lang)
-    except LookupError:
-        available = [f"{b}/{l.value}" for b, l in _registry.list_parsers()]
+    if not parser:
+        available = list(set([b for b, l in _registry.list_parsers()]))
         raise HTTPException(
             status_code=422,
-            detail=f"No parser for bank_id='{bank_id}', language='{language}'. Available: {available}",
+            detail=f"No parser for bank_id='{bank_id}'. Available: {available}",
         )
 
     # Security: enforce PDF content type and max file size (10 MB)
