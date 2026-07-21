@@ -25,14 +25,14 @@ from bank_parser.core.models import (
 )
 from bank_parser.core.parser import BaseBankParser
 
-_ACCOUNT_RE = re.compile(r"Account Number:\s*([\w]+)", re.IGNORECASE)
+_ACCOUNT_RE = re.compile(r"(?:Account Number|IBAN)[:\s]+([A-Z0-9]+)", re.IGNORECASE)
 _HOLDER_RE = re.compile(r"Account Title:\s*(.+)", re.IGNORECASE)
-_CURRENCY_RE = re.compile(r"Currency:\s*([A-Z]{3})", re.IGNORECASE)
+_CURRENCY_RE = re.compile(r"(?:Currency:\s*([A-Z]{3})|(PKR))", re.IGNORECASE)  # Fallback to PKR
 _PERIOD_RE = re.compile(
-    r"Statement Period:\s*(\d{1,2}\s+\w+\s+\d{4})\s+To\s+(\d{1,2}\s+\w+\s+\d{4})",
+    r"(?:Statement Period|Statement Duration)[:\s]+(\d{1,2}[/\-\s]+[A-Za-z0-9]+[/\-\s]+\d{4}).*?(?:To|till)\s+(\d{1,2}[/\-\s]+[A-Za-z0-9]+[/\-\s]+\d{4})",
     re.IGNORECASE,
 )
-_DATE_RE = re.compile(r"^(\d{1,2})-([A-Za-z]{3})-(\d{4})$")
+_DATE_RE = re.compile(r"^(\d{1,2})[-/]([A-Za-z]{3}|\d{1,2})[-/](\d{4})$")
 
 _MONTH_MAP = {
     "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
@@ -44,22 +44,41 @@ def _parse_hbl_date(raw: str) -> date | None:
     m = _DATE_RE.match(raw.strip())
     if not m:
         return None
-    day, mon_str, year = int(m.group(1)), m.group(2).lower(), int(m.group(3))
-    month = _MONTH_MAP.get(mon_str)
-    if not month:
+    day_str, mon_str, year_str = m.group(1), m.group(2).lower(), m.group(3)
+    
+    if mon_str.isdigit():
+        month = int(mon_str)
+    else:
+        month = _MONTH_MAP.get(mon_str)
+        
+    if not month or not (1 <= month <= 12):
         return None
     try:
-        return date(year, month, day)
+        return date(int(year_str), month, int(day_str))
     except ValueError:
         return None
 
 
 def _parse_period_date(raw: str) -> date | None:
-    parts = raw.strip().split()
+    # Matches both "01 Jan 2026" and "6/19/2020" (MM/DD/YYYY)
+    raw = raw.strip().replace("-", "/").replace(" ", "/")
+    parts = [p for p in raw.split("/") if p]
     if len(parts) != 3:
         return None
-    day, mon_str, year = parts
-    month = _MONTH_MAP.get(mon_str.lower())
+    
+    # If first part is M or MM, and second is D or DD (American format in HBL duration)
+    if parts[0].isdigit() and parts[1].isdigit():
+        m, d, y = int(parts[0]), int(parts[1]), int(parts[2])
+        if m > 12 >= d: # It's probably DD/MM/YYYY
+            d, m = m, d
+        try:
+            return date(y, m, d)
+        except ValueError:
+            pass
+
+    # Standard DD-Mon-YYYY
+    day, mon_str, year = parts[0], parts[1].lower(), parts[2]
+    month = _MONTH_MAP.get(mon_str)
     if not month:
         return None
     try:
@@ -111,10 +130,10 @@ class HBLParser(BaseBankParser):
             if "|" not in line:
                 continue
             parts = [p.strip() for p in line.split("|")]
-            if len(parts) < 7:
+            if len(parts) < 6:
                 continue
             # Skip header row
-            if parts[0].upper() in ("DATE", ""):
+            if parts[0].upper() in ("DATE", "TRANSACTION DATE", ""):
                 continue
             # Must start with a parseable date
             tx_date = _parse_hbl_date(parts[0])
@@ -131,10 +150,18 @@ class HBLParser(BaseBankParser):
         flags: list[ReviewFlag] = []
         value_date = _parse_hbl_date(parts[1]) if len(parts) > 1 else None
         description = parts[2] if len(parts) > 2 else ""
-        reference = parts[3] if len(parts) > 3 else None
-        debit_raw = parts[4] if len(parts) > 4 else ""
-        credit_raw = parts[5] if len(parts) > 5 else ""
-        balance_raw = parts[6] if len(parts) > 6 else ""
+        
+        # In newer formats (6 columns), there is no explicit Reference column.
+        if len(parts) == 6:
+            reference = None
+            debit_raw = parts[3]
+            credit_raw = parts[4]
+            balance_raw = parts[5]
+        else:
+            reference = parts[3] if len(parts) > 3 else None
+            debit_raw = parts[4] if len(parts) > 4 else ""
+            credit_raw = parts[5] if len(parts) > 5 else ""
+            balance_raw = parts[6] if len(parts) > 6 else ""
 
         debit = _parse_decimal(debit_raw)
         credit = _parse_decimal(credit_raw)
@@ -177,4 +204,7 @@ class HBLParser(BaseBankParser):
 
     def _regex(self, text: str, pattern: re.Pattern) -> str | None:
         m = pattern.search(text)
-        return m.group(1).strip() if m else None
+        if m:
+            for g in m.groups():
+                if g: return g.strip()
+        return None
