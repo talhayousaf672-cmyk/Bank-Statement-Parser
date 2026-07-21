@@ -40,6 +40,11 @@ def validate_ai_fallback_result(
     validated = validate_parse_result(ai_parse_result)
     summary = summarize_validation(validated, policy=policy)
     gate_flags = _gate_flags(summary)
+    
+    # Inject gate flags into the result so they are visible downstream
+    validated = validated.model_copy(
+        update={"review_flags": validated.review_flags + gate_flags}
+    )
 
     return AiFallbackGateResult(
         status=_status_from_summary(summary),

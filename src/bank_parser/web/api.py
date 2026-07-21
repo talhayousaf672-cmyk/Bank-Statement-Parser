@@ -134,7 +134,7 @@ async def parse_statement(
             language=Language.SPANISH,
             existing_result=parse_result,
         )
-        if fallback_gate and fallback_gate.accepted:
+        if fallback_gate:
             parse_result = fallback_gate.parse_result
     except Exception as exc:
         import traceback
