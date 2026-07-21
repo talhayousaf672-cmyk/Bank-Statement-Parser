@@ -14,27 +14,22 @@ import os
 import re
 
 from bank_parser.ai.fallback_gate import AiFallbackGateResult, validate_ai_fallback_result
-from bank_parser.ai.groq_client import FAST_MODEL, get_groq_client
+from bank_parser.ai.groq_client import DEFAULT_MODEL, get_groq_client
 from bank_parser.core.models import ParseResult, Transaction, Language
 
 _ENRICH_PROMPT = """\
-You are enriching and translating terse Pakistani and international bank transaction descriptions.
+You are an expert financial translator. Your task is to enrich terse Pakistani and international bank transaction descriptions and translate them into {language}.
 
-For each transaction below, provide a clearer, more descriptive label. Rules:
-- Keep descriptions concise (max 60 characters)
-- Do NOT change meaning — only clarify abbreviations
-- Common abbreviations: IBFT=Inter-Bank Fund Transfer, TRF=Transfer, CR=Credit, DR=Debit,
-  POS=Point of Sale, ATM=ATM Withdrawal, SAL=Salary, UTIL=Utility, INS=Insurance,
-  KEPTA=KESC/K-Electric, LESCO=Lahore Electric Supply, SNGPL=Sui Northern Gas,
-  PTCL=Pakistan Telecom, MCB=MCB Bank, HBL=HBL Bank, UBL=United Bank
-- TRANSLATE the final human-readable description into {language}.
+Rules:
+1. Enlarge and clarify abbreviations (e.g. IBFT=Inter-Bank Fund Transfer, TRF=Transfer, POS=Point of Sale, ATM=ATM Withdrawal).
+2. Keep descriptions concise (max 60 characters).
+3. CRITICAL: The final output MUST be translated entirely into {language}. Do not output English unless {language} is English.
 
-Return ONLY a flat JSON array of strings, where each string is the final translated description.
-Do NOT return an array of objects. Do NOT return keys or JSON dicts.
+Return ONLY a flat JSON array of strings. Do NOT return JSON objects or dicts.
 Example Output:
 [
-  "First translated description",
-  "Second translated description"
+  "Translated description 1",
+  "Translated description 2"
 ]
 
 No prose, no markdown.
@@ -85,7 +80,7 @@ def _call_llama(client, transactions: list[Transaction], language: Language) -> 
     )
 
     response = client.chat.completions.create(
-        model=FAST_MODEL,
+        model=DEFAULT_MODEL,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=1024,
         temperature=0.1,  # low temp for deterministic output
