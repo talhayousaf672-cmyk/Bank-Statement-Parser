@@ -64,7 +64,34 @@ bank-statement-parser/
 
 Every parser must output the same internal model, regardless of bank, language, or app.
 
-Core fields should include statement metadata, transaction date, value date, description, reference, debit, credit, amount, balance, currency, account details, language, bank identifier, parser version, confidence score, and review flags. Final names can be locked in Phase 0.
+Statement-level fields:
+
+| Field | Purpose |
+|---|---|
+| bank_id | Bank/parser identifier, for example hbl, meezan, example_bank |
+| language | Statement language: ar, ur, ru, es, hi |
+| account_number | Customer account number, if available |
+| account_holder | Account holder/customer name, if available |
+| currency | Main statement currency, for example PKR, SAR, USD |
+| statement_period_start | Start date of the statement period |
+| statement_period_end | End date of the statement period |
+| parser_version | Version of the parser that produced the result |
+
+Transaction-level fields:
+
+| Field | Purpose |
+|---|---|
+| transaction_date | Date the transaction happened |
+| value_date | Date the bank applies value/settlement, if shown |
+| description | Transaction description/narration |
+| reference | Cheque number, transfer ID, transaction ID, or other reference |
+| debit | Money out; null if not a debit row |
+| credit | Money in; null if not a credit row |
+| amount | Signed transaction amount; debit is negative, credit is positive |
+| balance | Running balance after the transaction |
+| currency | Transaction currency if shown; otherwise inherits statement currency |
+| confidence | Parser confidence for the row, from 0.0 to 1.0 |
+| review_flags | Issues like missing_balance, unclear_date, ambiguous_amount |
 
 ### Phase Plan
 

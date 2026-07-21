@@ -3,21 +3,25 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.py[cod]
 *.egg-info/
 .eggs/
 dist/
 build/
+python-install.log
 
 # Virtual Environments
 myenv/
 venv/
 .venv/
 env/
+.python*/
 
-# Pytest & Coverage
+# Pytest, Coverage & Linting
 .pytest_cache/
 .coverage
 htmlcov/
+.ruff_cache/
 
 # IDE & OS
 .vscode/
@@ -28,4 +32,5 @@ Thumbs.db
 # Documentation & Phases
 docs/phase.md
 *phase*.md
-
+TALHA_PROGRESS.md
+TALHA_WORK_SUMMARY.md
