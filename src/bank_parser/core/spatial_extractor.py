@@ -91,55 +91,66 @@ def _extract_with_camelot(path: Path, regions: list[CroppedRegion]) -> str:
     if not tables:
         return ""
 
-    # Pick the table most likely to be the transaction grid
-    best_table = _pick_best_table(tables)
-    if best_table is None:
-        return ""
-
-    df = best_table.df
-    rows = df.values.tolist()
-    markdown_rows: list[str] = []
-
-    # Find the header row (row containing 'Date' and 'Description' or 'Debit'/'Credit')
-    header_idx = _find_header_row(rows)
-    if header_idx < 0:
-        header_idx = 0
-
-    header = rows[header_idx]
-    clean_header = [str(c).strip().replace("\n", " ") for c in header]
-    markdown_rows.append("| " + " | ".join(clean_header) + " |")
-    markdown_rows.append("|" + "|".join(["---"] * len(clean_header)) + "|")
-
-    for row in rows[header_idx + 1:]:
-        clean_row = [str(c).strip().replace("\n", " ") for c in row]
-        # Skip completely empty rows
-        if any(c for c in clean_row):
-            markdown_rows.append("| " + " | ".join(clean_row) + " |")
-
-    return "\n".join(markdown_rows)
-
-
-def _pick_best_table(tables) -> object | None:
-    """Pick the table most likely to contain transaction data."""
+    # 1. Score all tables to find the most likely primary transaction table
     scored = []
     for table in tables:
         df = table.df
         if df.empty:
             continue
-        # Score: prefer tables with date-like, debit/credit-like column headers
         all_text = " ".join(str(v).lower() for v in df.values.flatten())
         score = 0
-        for keyword in ["date", "debit", "credit", "balance", "description", "amount"]:
+        for keyword in ["date", "debit", "credit", "balance", "description", "amount", "particulars", "value"]:
             if keyword in all_text:
                 score += 1
-        score += len(df) * 0.01  # prefer larger tables
+        # Boost score by size, but cap it so a huge wrong table doesn't win over a smaller correct one
+        score += min(len(df), 50) * 0.05
         scored.append((score, table))
 
     if not scored:
-        return None
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return scored[0][1]
+        return ""
 
+    scored.sort(key=lambda x: x[0], reverse=True)
+    best_table = scored[0][1]
+    expected_cols = best_table.df.shape[1]
+
+    # Find the header row in the best table
+    header_idx = _find_header_row(best_table.df.values.tolist())
+    if header_idx < 0:
+        header_idx = 0
+
+    header = best_table.df.values.tolist()[header_idx]
+    clean_header = [str(c).strip().replace("\n", " ") for c in header]
+    
+    markdown_rows: list[str] = []
+    markdown_rows.append("| " + " | ".join(clean_header) + " |")
+    markdown_rows.append("|" + "|".join(["---"] * len(clean_header)) + "|")
+
+    # 2. Extract data from all tables that match the expected column count
+    for _score, table in scored:
+        df = table.df
+        if df.shape[1] != expected_cols:
+            continue
+            
+        rows = df.values.tolist()
+        
+        # If this is the best table, start after its header.
+        # Otherwise, check if this table repeats the header.
+        start_idx = 0
+        if table is best_table:
+            start_idx = header_idx + 1
+        else:
+            # Check if first row is a header repeat
+            first_row_text = " ".join(str(c).lower() for c in rows[0])
+            if any(w in first_row_text for w in ["date", "debit", "credit", "balance"]):
+                start_idx = 1
+                
+        for row in rows[start_idx:]:
+            clean_row = [str(c).strip().replace("\n", " ") for c in row]
+            # Skip completely empty rows
+            if any(c for c in clean_row):
+                markdown_rows.append("| " + " | ".join(clean_row) + " |")
+
+    return "\n".join(markdown_rows)
 
 def _find_header_row(rows: list[list]) -> int:
     """Find the row index containing the column headers."""
