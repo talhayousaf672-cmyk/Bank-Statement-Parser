@@ -22,7 +22,9 @@ from bank_parser.parsers import register_builtin_parsers
 from bank_parser.validation.reconciliation import validate_parse_result
 from bank_parser.validation.review_queue import ReviewQueueItem, build_review_queue
 from bank_parser.validation.summary import ValidationSummary, summarize_validation
-from bank_parser.ai.fallback_extractor import extract_with_fallback
+from bank_parser.ai.fallback_extractor import extract_from_markdown, extract_with_fallback
+from bank_parser.core.grid_cropper import get_cropped_regions
+from bank_parser.core.spatial_extractor import extract_markdown
 
 app = FastAPI(
     title="Bank Statement Parser API",
@@ -111,21 +113,57 @@ async def parse_statement(
         tmp.write(content)
         tmp_path = Path(tmp.name)
 
-    # Extract + normalize
+    # Extract text blocks (for legacy pipeline fallback)
     try:
         blocks = extract_text_blocks(tmp_path)
     except PdfExtractionError as exc:
         tmp_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=f"PDF extraction failed: {exc}")
-    finally:
-        tmp_path.unlink(missing_ok=True)
 
+    # -----------------------------------------------------------------------
+    # New Spatial Pipeline: Grid Crop → Spatial Engine → AI (Markdown path)
+    # -----------------------------------------------------------------------
+    markdown_table: str = ""
+    try:
+        regions = get_cropped_regions(tmp_path)
+        markdown_table = extract_markdown(tmp_path, regions)
+    except Exception:
+        pass  # Spatial engine unavailable or failed — fall through to legacy path
+    finally:
+        tmp_path.unlink(missing_ok=True)  # PDF no longer needed after extraction
+
+    if markdown_table:
+        # New path: clean Markdown table → AI structures it
+        try:
+            fallback_gate = extract_from_markdown(
+                markdown_table,
+                bank_id,
+                language=Language.SPANISH,
+            )
+            if fallback_gate:
+                parse_result = fallback_gate.parse_result
+                parse_result = validate_parse_result(parse_result)
+                statement_id = str(uuid.uuid4())
+                _statement_store[statement_id] = parse_result
+                summary = summarize_validation(parse_result)
+                return {
+                    "statement_id": statement_id,
+                    "transaction_count": len(parse_result.transactions),
+                    "export_readiness": summary.export_readiness.value,
+                    "warning_rows": summary.warning_rows,
+                    "error_rows": summary.error_rows,
+                    "pipeline": "spatial",
+                }
+        except Exception:
+            pass  # Spatial+AI path failed — fall through to legacy
+
+    # -----------------------------------------------------------------------
+    # Legacy Pipeline: Raw Text → Regex Parser → AI Fallback
+    # -----------------------------------------------------------------------
     normalized = normalize_text("\n".join(b.text for b in blocks))
     parse_result = parser.parse(normalized)
-
-    # Validate deterministic result
     parse_result = validate_parse_result(parse_result)
-    
+
     # Try AI Fallback if needed
     try:
         fallback_gate = extract_with_fallback(
@@ -140,7 +178,7 @@ async def parse_statement(
         import traceback
         trace_str = "".join(traceback.format_exception(None, exc, exc.__traceback__))
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"AI Fallback failed: {str(exc)}\n\nTraceback:\n{trace_str}"
         )
     statement_id = str(uuid.uuid4())
@@ -153,6 +191,7 @@ async def parse_statement(
         "export_readiness": summary.export_readiness.value,
         "warning_rows": summary.warning_rows,
         "error_rows": summary.error_rows,
+        "pipeline": "legacy",
     }
 
 
