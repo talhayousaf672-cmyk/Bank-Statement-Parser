@@ -67,9 +67,12 @@ def _extract_with_camelot(path: Path, regions: list[CroppedRegion]) -> str:
         return ""
 
     try:
+        # Strip copy-restriction permission flags that Camelot strictly enforces
+        # (some banks like Meezan set copy=False even though text is extractable)
+        clean_path = _get_unrestricted_copy(path)
         # Auto-detect tables across all pages — more robust than crop coordinates
         tables = camelot.read_pdf(
-            str(path),
+            str(clean_path),
             pages="all",
             flavor="stream",
             edge_tol=50,
@@ -78,6 +81,12 @@ def _extract_with_camelot(path: Path, regions: list[CroppedRegion]) -> str:
     except Exception as exc:
         logger.warning("Camelot failed: %s", exc)
         return ""
+    finally:
+        if 'clean_path' in dir() and clean_path != path:
+            try:
+                clean_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     if not tables:
         return ""
@@ -177,3 +186,39 @@ def _count_data_rows(markdown: str) -> int:
     lines = [l for l in markdown.strip().split("\n") if l.strip().startswith("|")]
     # Subtract header row and separator row
     return max(0, len(lines) - 2)
+
+
+def _get_unrestricted_copy(path: Path) -> Path:
+    """Return a path to a copy of the PDF with copy-restriction flags removed.
+
+    Some banks (e.g. Meezan) set the PDF copy-text permission bit to False
+    even though the text is fully extractable. Camelot's underlying parser
+    (`playa`) strictly respects this flag and raises PDFTextExtractionNotAllowed.
+
+    PyMuPDF ignores this flag and can re-save the file without it.
+    If no restriction is present, returns the original path unchanged.
+    """
+    try:
+        import fitz
+        import tempfile
+
+        doc = fitz.open(str(path))
+        # Check if copy permission is blocked (bit 4 of permissions)
+        copy_allowed = bool(doc.permissions & (1 << 4))
+        doc.close()
+
+        if copy_allowed:
+            return path  # No restriction — use original
+
+        # Re-save without restrictions
+        doc = fitz.open(str(path))
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp_path = Path(tmp.name)
+        doc.save(str(tmp_path), encryption=fitz.PDF_ENCRYPT_NONE)
+        doc.close()
+        logger.info("Stripped copy-restriction flags from %s", path.name)
+        return tmp_path
+
+    except Exception as exc:
+        logger.warning("Could not strip PDF restrictions: %s", exc)
+        return path  # Fall back to original
