@@ -69,10 +69,18 @@ def _extract_with_camelot(path: Path, regions: list[CroppedRegion]) -> str:
     try:
         clean_path = _get_unrestricted_copy(path)
         
-        # Pass 1: Fast scan of first 3 pages to find the best table structure
+        # Determine number of pages to prevent Camelot IndexError on small PDFs
+        import fitz
+        doc = fitz.open(clean_path)
+        num_pages = len(doc)
+        doc.close()
+        end_page = min(3, num_pages)
+        pages_str = f"1-{end_page}" if end_page > 1 else "1"
+        
+        # Pass 1: Fast scan of first few pages to find the best table structure
         tables_pass1 = camelot.read_pdf(
             str(clean_path),
-            pages="1-3",
+            pages=pages_str,
             flavor="stream",
             edge_tol=50,
             row_tol=10,
