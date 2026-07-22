@@ -59,55 +59,88 @@ def extract_markdown(
 
 
 def _extract_with_camelot(path: Path, regions: list[CroppedRegion]) -> str:
-    """Use Camelot stream mode to extract tables from cropped regions."""
+    """Use Camelot stream mode to extract the best transaction table."""
     try:
         import camelot
     except ImportError:
         logger.warning("camelot-py not installed. Skipping Camelot extraction.")
         return ""
 
-    all_markdown_rows: list[str] = []
-    header_written = False
+    try:
+        # Auto-detect tables across all pages — more robust than crop coordinates
+        tables = camelot.read_pdf(
+            str(path),
+            pages="all",
+            flavor="stream",
+            edge_tol=50,
+            row_tol=10,
+        )
+    except Exception as exc:
+        logger.warning("Camelot failed: %s", exc)
+        return ""
 
-    for region in regions:
-        page_num = region.page_index + 1  # camelot is 1-indexed
-        table_area = f"{region.x0},{region.y_bottom},{region.x1},{region.y_top}"
+    if not tables:
+        return ""
 
-        try:
-            tables = camelot.read_pdf(
-                str(path),
-                pages=str(page_num),
-                flavor="stream",
-                table_areas=[table_area],
-                edge_tol=50,
-                row_tol=10,
-            )
-        except Exception as exc:
-            logger.warning("Camelot failed on page %d: %s", page_num, exc)
+    # Pick the table most likely to be the transaction grid
+    best_table = _pick_best_table(tables)
+    if best_table is None:
+        return ""
+
+    df = best_table.df
+    rows = df.values.tolist()
+    markdown_rows: list[str] = []
+
+    # Find the header row (row containing 'Date' and 'Description' or 'Debit'/'Credit')
+    header_idx = _find_header_row(rows)
+    if header_idx < 0:
+        header_idx = 0
+
+    header = rows[header_idx]
+    clean_header = [str(c).strip().replace("\n", " ") for c in header]
+    markdown_rows.append("| " + " | ".join(clean_header) + " |")
+    markdown_rows.append("|" + "|".join(["---"] * len(clean_header)) + "|")
+
+    for row in rows[header_idx + 1:]:
+        clean_row = [str(c).strip().replace("\n", " ") for c in row]
+        # Skip completely empty rows
+        if any(c for c in clean_row):
+            markdown_rows.append("| " + " | ".join(clean_row) + " |")
+
+    return "\n".join(markdown_rows)
+
+
+def _pick_best_table(tables) -> object | None:
+    """Pick the table most likely to contain transaction data."""
+    scored = []
+    for table in tables:
+        df = table.df
+        if df.empty:
             continue
+        # Score: prefer tables with date-like, debit/credit-like column headers
+        all_text = " ".join(str(v).lower() for v in df.values.flatten())
+        score = 0
+        for keyword in ["date", "debit", "credit", "balance", "description", "amount"]:
+            if keyword in all_text:
+                score += 1
+        score += len(df) * 0.01  # prefer larger tables
+        scored.append((score, table))
 
-        for table in tables:
-            df = table.df
-            if df.empty or len(df) < 2:
-                continue
+    if not scored:
+        return None
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return scored[0][1]
 
-            rows = df.values.tolist()
 
-            if not header_written:
-                header = rows[0]
-                clean_header = [str(c).strip().replace("\n", " ") for c in header]
-                all_markdown_rows.append("| " + " | ".join(clean_header) + " |")
-                all_markdown_rows.append("|" + "|".join(["---"] * len(clean_header)) + "|")
-                header_written = True
-                data_rows = rows[1:]
-            else:
-                data_rows = rows
-
-            for row in data_rows:
-                clean_row = [str(c).strip().replace("\n", " ") for c in row]
-                all_markdown_rows.append("| " + " | ".join(clean_row) + " |")
-
-    return "\n".join(all_markdown_rows)
+def _find_header_row(rows: list[list]) -> int:
+    """Find the row index containing the column headers."""
+    target_words = {"date", "debit", "credit", "balance", "description", "amount", "value"}
+    for i, row in enumerate(rows[:10]):  # only search first 10 rows
+        row_text = " ".join(str(c).lower() for c in row)
+        matches = sum(1 for w in target_words if w in row_text)
+        if matches >= 2:
+            return i
+    return -1
 
 
 def _extract_with_docling(path: Path) -> str:
