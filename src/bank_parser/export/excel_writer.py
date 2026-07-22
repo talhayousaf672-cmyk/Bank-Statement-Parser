@@ -72,9 +72,10 @@ def _write_statement_sheet(
     ws.freeze_panes = "A2"
 
     meta = parse_result.metadata
+    bank_label = _bank_label(meta.bank_id)
     for tx in parse_result.transactions:
         row = [
-            meta.bank_id,
+            bank_label,
             meta.account_number or "",
             meta.account_holder or "",
             str(meta.statement_period_start) if meta.statement_period_start else "",
@@ -101,6 +102,12 @@ def _write_statement_sheet(
             default=10,
         )
         ws.column_dimensions[col_letter].width = min(max_len + 4, 50)
+
+
+def _bank_label(bank_id: str) -> str:
+    if bank_id == "generic_english":
+        return "AI Fallback"
+    return bank_id.replace("_", " ").title()
 
 
 def _write_review_flags_sheet(

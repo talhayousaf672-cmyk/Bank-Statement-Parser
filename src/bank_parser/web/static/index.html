@@ -716,9 +716,19 @@
       else badge.classList.add('badge-blocked');
 
       const exportBtn = document.getElementById('export-btn');
-      exportBtn.disabled = (r === 'blocked');
-      document.getElementById('enrich-btn').disabled = false;
+      exportBtn.disabled = (r === 'blocked' || data.transaction_count === 0);
+      document.getElementById('enrich-btn').disabled = data.transaction_count === 0;
       document.getElementById('result-actions').classList.add('visible');
+
+      const fallback = (data.ai_fallback_status || 'unknown').replace(/_/g, ' ');
+      const fallbackError = data.ai_fallback_error ? ` ${data.ai_fallback_error}` : '';
+      if (data.transaction_count === 0) {
+        setResultStatus(`No transactions found. AI fallback: ${fallback}.${fallbackError}`);
+      } else if (data.ai_fallback_status === 'cached') {
+        setResultStatus('Loaded from the previous successful parse of this PDF.');
+      } else {
+        setResultStatus(`AI fallback: ${fallback}.${fallbackError}`);
+      }
     }
 
     // ── Load transactions ──────────────────────────────────────────────────────
