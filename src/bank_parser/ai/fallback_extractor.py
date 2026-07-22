@@ -34,6 +34,7 @@ Schema fields:
 
 Return ONLY a valid JSON object mapping the field name to the integer column index.
 If a field is NOT present in the table, map it to null.
+For the "currency" field, return the 3-letter ISO currency code (e.g., PKR, USD) if you see currency symbols like Rs. or $ in the table. Otherwise return null.
 Do not guess. Do not include markdown fences.
 
 Schema:
@@ -45,7 +46,8 @@ Schema:
   "debit": <int or null>,
   "credit": <int or null>,
   "amount": <int or null>,
-  "balance": <int or null>
+  "balance": <int or null>,
+  "currency": "<3-letter ISO code or null>"
 }}
 
 Markdown table (first 5 rows):
@@ -61,6 +63,7 @@ class ColumnMap(BaseModel):
     credit: int | None = None
     amount: int | None = None
     balance: int | None = None
+    currency: str | None = None
 
 
 
@@ -344,6 +347,7 @@ def extract_from_markdown(
     metadata = StatementMetadata(
         bank_id=bank_id,
         language=language,
+        currency=col_map.currency,
         parser_version="0.3.0"
     )
 
