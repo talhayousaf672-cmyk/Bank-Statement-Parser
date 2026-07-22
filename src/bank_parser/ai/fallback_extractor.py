@@ -29,6 +29,7 @@ Schema fields:
 - reference (or cheque number)
 - debit (withdrawals, out)
 - credit (deposits, in)
+- amount (use this INSTEAD of debit/credit ONLY IF they are combined in a single column with +/- signs)
 - balance
 
 Return ONLY a valid JSON object mapping the field name to the integer column index.
@@ -43,6 +44,7 @@ Schema:
   "reference": <int or null>,
   "debit": <int or null>,
   "credit": <int or null>,
+  "amount": <int or null>,
   "balance": <int or null>
 }}
 
@@ -57,6 +59,7 @@ class ColumnMap(BaseModel):
     reference: int | None = None
     debit: int | None = None
     credit: int | None = None
+    amount: int | None = None
     balance: int | None = None
 
 
@@ -219,10 +222,26 @@ def extract_from_markdown(
     from decimal import Decimal
     from datetime import date
     import re
+    
+    try:
+        from dateutil.parser import parse as parse_dt
+    except ImportError:
+        parse_dt = None
 
     def _parse_date(d_str: str) -> date | None:
         if not d_str: return None
-        # Basic YYYY-MM-DD or DD-MM-YYYY parser
+        # Clean up weird markdown artifacts if any
+        d_str = re.sub(r'[^a-zA-Z0-9\s:/-]', '', d_str).strip()
+        
+        # Try dateutil first since it handles "10 Jul 2025" automatically
+        if parse_dt:
+            try:
+                # fuzzy=True ignores random words like "AM/PM" if it can find a date
+                return parse_dt(d_str, fuzzy=True).date()
+            except Exception:
+                pass
+
+        # Fallback to simple regex
         m = re.search(r"(\d{2,4})[-/](\d{1,2})[-/](\d{2,4})", d_str)
         if not m: return None
         p1, p2, p3 = m.groups()
@@ -236,22 +255,28 @@ def extract_from_markdown(
         return None
 
     def _parse_decimal(val: str) -> Decimal | None:
+        # Strip out commas
         val = val.replace(",", "").strip()
         if not val or val == "-": return None
-        # Find the first number or negative sign
-        m = re.search(r"-?\d+(?:\.\d+)?", val)
+        
+        # Check for negative signs anywhere in the string, or accounting parentheses
+        is_negative = "-" in val or (val.startswith("(") and val.endswith(")"))
+        
+        # Extract just the float, ignoring currencies like "Rs."
+        m = re.search(r"(\d+(?:\.\d+)?)", val)
         if not m: return None
         try:
-            return Decimal(m.group(0))
+            d = Decimal(m.group(1))
+            return -d if is_negative else d
         except:
             return None
 
     transactions = []
     
-    # Skip header and separator rows (usually first 2 lines)
-    data_lines = [l for l in table_lines if l.strip().startswith("|") and "---" not in l]
-    if len(data_lines) > 0 and "date" in data_lines[0].lower():
-        data_lines = data_lines[1:]
+    # Skip header and separator rows
+    data_lines = [l for l in table_lines if l.strip().startswith("|")]
+    if len(data_lines) >= 2 and "---" in data_lines[1]:
+        data_lines = data_lines[2:]
 
     for line in data_lines:
         cells = [c.strip() for c in line.split("|")[1:-1]]  # remove leading/trailing empty cells from pipes
@@ -269,22 +294,36 @@ def extract_from_markdown(
         tx_date_str = _get_cell(col_map.transaction_date)
         val_date_str = _get_cell(col_map.value_date)
         ref_str = _get_cell(col_map.reference)
+        
         debit_str = _get_cell(col_map.debit)
         credit_str = _get_cell(col_map.credit)
+        amt_str = _get_cell(col_map.amount)
         balance_str = _get_cell(col_map.balance)
 
         debit = _parse_decimal(debit_str)
         credit = _parse_decimal(credit_str)
+        amt_val = _parse_decimal(amt_str)
         balance = _parse_decimal(balance_str)
 
         amount = Decimal("0.0")
-        if debit is not None:
-            amount = -debit
-        elif credit is not None:
-            amount = credit
+        
+        # Resolve combined Amount column vs separate Debit/Credit
+        if amt_val is not None:
+            # It's a combined column (+ for credit, - for debit)
+            amount = amt_val
+            if amount < 0:
+                debit = abs(amount)
+            elif amount > 0:
+                credit = amount
+        else:
+            # Separate columns
+            if debit is not None:
+                amount = -debit
+            elif credit is not None:
+                amount = credit
 
-        # If both are null but we expect a transaction, maybe it's just a description overflow row
-        if debit is None and credit is None and balance is None and not tx_date_str:
+        # If all amounts are null but we expect a transaction, it's likely a description overflow row
+        if debit is None and credit is None and amt_val is None and balance is None and not tx_date_str:
             # Append to previous transaction's description
             if transactions:
                 transactions[-1].description += " " + desc
