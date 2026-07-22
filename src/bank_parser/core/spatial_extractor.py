@@ -67,17 +67,60 @@ def _extract_with_camelot(path: Path, regions: list[CroppedRegion]) -> str:
         return ""
 
     try:
-        # Strip copy-restriction permission flags that Camelot strictly enforces
-        # (some banks like Meezan set copy=False even though text is extractable)
         clean_path = _get_unrestricted_copy(path)
-        # Auto-detect tables across all pages — more robust than crop coordinates
-        tables = camelot.read_pdf(
+        
+        # Pass 1: Fast scan of first 3 pages to find the best table structure
+        tables_pass1 = camelot.read_pdf(
             str(clean_path),
-            pages="all",
+            pages="1-3",
             flavor="stream",
             edge_tol=50,
             row_tol=10,
         )
+        
+        if not tables_pass1:
+            return ""
+
+        # Score tables to find the primary transaction grid
+        scored = []
+        for table in tables_pass1:
+            df = table.df
+            if df.empty:
+                continue
+            all_text = " ".join(str(v).lower() for v in df.values.flatten())
+            score = 0
+            for keyword in ["date", "debit", "credit", "balance", "description", "amount", "particulars", "value"]:
+                if keyword in all_text:
+                    score += 1
+            score += min(len(df), 50) * 0.05
+            scored.append((score, table))
+
+        if not scored:
+            return ""
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        best_table = scored[0][1]
+        expected_cols = best_table.df.shape[1]
+
+        # Extract the x-coordinates of the column boundaries from the best table
+        # camelot table.cols is a list of (x0, x1). We need a comma-separated string of x1's for the columns arg.
+        if len(best_table.cols) > 1:
+            x_coords = [str(x1) for x0, x1 in best_table.cols[:-1]]
+            cols_str = ",".join(x_coords)
+            
+            # Pass 2: Extract ALL pages forcing the exact column boundaries
+            tables = camelot.read_pdf(
+                str(clean_path),
+                pages="all",
+                flavor="stream",
+                columns=[cols_str],
+                edge_tol=50,
+                row_tol=10,
+            )
+        else:
+            # Fallback if no columns detected
+            tables = camelot.read_pdf(str(clean_path), pages="all", flavor="stream", edge_tol=50, row_tol=10)
+
     except Exception as exc:
         logger.warning("Camelot failed: %s", exc)
         return ""
@@ -88,65 +131,53 @@ def _extract_with_camelot(path: Path, regions: list[CroppedRegion]) -> str:
             except Exception:
                 pass
 
-    if not tables:
-        return ""
-
-    # 1. Score all tables to find the most likely primary transaction table
-    scored = []
+    # Since we forced columns, all tables should have expected_cols
+    # but we'll still score them to weed out random text blocks
+    scored_pass2 = []
     for table in tables:
         df = table.df
-        if df.empty:
+        if df.shape[1] != expected_cols:
             continue
         all_text = " ".join(str(v).lower() for v in df.values.flatten())
         score = 0
         for keyword in ["date", "debit", "credit", "balance", "description", "amount", "particulars", "value"]:
             if keyword in all_text:
                 score += 1
-        # Boost score by size, but cap it so a huge wrong table doesn't win over a smaller correct one
         score += min(len(df), 50) * 0.05
-        scored.append((score, table))
+        scored_pass2.append((score, table))
 
-    if not scored:
+    if not scored_pass2:
         return ""
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-    best_table = scored[0][1]
-    expected_cols = best_table.df.shape[1]
+        
+    scored_pass2.sort(key=lambda x: x[0], reverse=True)
+    best_pass2_table = scored_pass2[0][1]
 
     # Find the header row in the best table
-    header_idx = _find_header_row(best_table.df.values.tolist())
+    header_idx = _find_header_row(best_pass2_table.df.values.tolist())
     if header_idx < 0:
         header_idx = 0
 
-    header = best_table.df.values.tolist()[header_idx]
+    header = best_pass2_table.df.values.tolist()[header_idx]
     clean_header = [str(c).strip().replace("\n", " ") for c in header]
     
     markdown_rows: list[str] = []
     markdown_rows.append("| " + " | ".join(clean_header) + " |")
     markdown_rows.append("|" + "|".join(["---"] * len(clean_header)) + "|")
 
-    # 2. Extract data from all tables that match the expected column count
-    for _score, table in scored:
-        df = table.df
-        if df.shape[1] != expected_cols:
-            continue
-            
-        rows = df.values.tolist()
+    # Extract data from all matching tables
+    for _score, table in scored_pass2:
+        rows = table.df.values.tolist()
         
-        # If this is the best table, start after its header.
-        # Otherwise, check if this table repeats the header.
         start_idx = 0
-        if table is best_table:
+        if table is best_pass2_table:
             start_idx = header_idx + 1
         else:
-            # Check if first row is a header repeat
             first_row_text = " ".join(str(c).lower() for c in rows[0])
             if any(w in first_row_text for w in ["date", "debit", "credit", "balance"]):
                 start_idx = 1
                 
         for row in rows[start_idx:]:
             clean_row = [str(c).strip().replace("\n", " ") for c in row]
-            # Skip completely empty rows
             if any(c for c in clean_row):
                 markdown_rows.append("| " + " | ".join(clean_row) + " |")
 

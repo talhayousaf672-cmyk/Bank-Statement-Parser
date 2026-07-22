@@ -325,11 +325,18 @@ def extract_from_markdown(
             elif credit is not None:
                 amount = credit
 
-        # If all amounts are null but we expect a transaction, it's likely a description overflow row
-        if debit is None and credit is None and amt_val is None and balance is None and not tx_date_str:
-            # Append to previous transaction's description
+        # If all amounts are null, it's definitely a description overflow/continuation row
+        # (Even if there's text in the date column like a time "10:33 PM", it belongs to the previous row)
+        if debit is None and credit is None and amt_val is None and balance is None:
             if transactions:
-                transactions[-1].description += " " + desc
+                # Append any available text from the row to the previous transaction's description
+                extra_text = []
+                if tx_date_str: extra_text.append(tx_date_str)
+                if desc: extra_text.append(desc)
+                if ref_str: extra_text.append(ref_str)
+                
+                if extra_text:
+                    transactions[-1].description += " \n " + " ".join(extra_text)
             continue
 
         tx = Transaction(
