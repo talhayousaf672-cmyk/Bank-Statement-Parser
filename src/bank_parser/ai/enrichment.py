@@ -17,28 +17,20 @@ from bank_parser.ai.fallback_gate import AiFallbackGateResult, validate_ai_fallb
 from bank_parser.ai.groq_client import DEFAULT_MODEL, get_groq_client
 from bank_parser.core.models import ParseResult, Transaction, Language
 
-_ENRICH_BATCH_SIZE = 20
-
 _ENRICH_PROMPT = """\
-You are an expert bank statement analyst. Rewrite each transaction description into a clear,
-human-readable description and translate it into {language}.
+You are an expert financial translator. Your task is to enrich terse Pakistani and international bank transaction descriptions and translate them into {language}.
 
 Rules:
-1. Expand and clarify banking abbreviations: IBFT=Inter-Bank Fund Transfer, TRF=Transfer,
-   POS=Point of Sale, ATM=ATM Withdrawal, CR=Credit, DR=Debit, RAAST=Raast instant payment.
-2. Preserve visible names, merchant names, references, and payment channels.
-3. Include whether it is incoming, outgoing, purchase, withdrawal, fee, salary, utility, or transfer when clear.
-4. Keep each description useful but concise, max 120 characters.
-5. The final output MUST be translated entirely into {language}. Do not output English unless {language} is English.
+1. Enlarge and clarify abbreviations (e.g. IBFT=Inter-Bank Fund Transfer, TRF=Transfer, POS=Point of Sale, ATM=ATM Withdrawal).
+2. Keep descriptions concise (max 60 characters).
+3. CRITICAL: The final output MUST be translated entirely into {language}. Do not output English unless {language} is English.
 
-Return ONLY a valid JSON object with a "descriptions" array of strings.
+Return ONLY a flat JSON array of strings. Do NOT return JSON objects or dicts.
 Example Output:
-{{
-  "descriptions": [
-    "Incoming Raast transfer from SAGHEER HUSSAIN",
-    "Outgoing inter-bank fund transfer to ALI KHAN"
-  ]
-}}
+[
+  "Translated description 1",
+  "Translated description 2"
+]
 
 No prose, no markdown.
 
@@ -53,7 +45,7 @@ class EnrichmentUnavailableError(RuntimeError):
 
 def enrich_descriptions(
     parse_result: ParseResult,
-    language: Language,
+    language: Language | None = None,
     api_key: str | None = None,
 ) -> ParseResult:
     """Enrich transaction descriptions using Llama via Groq.
@@ -66,10 +58,11 @@ def enrich_descriptions(
     except ValueError as exc:
         raise EnrichmentUnavailableError(str(exc)) from exc
 
+    target_language = _coerce_language(language or parse_result.metadata.language)
     enriched_descriptions = []
     for start in range(0, len(parse_result.transactions), _ENRICH_BATCH_SIZE):
         batch = parse_result.transactions[start:start + _ENRICH_BATCH_SIZE]
-        enriched_descriptions.extend(_call_llama(client, batch, language))
+        enriched_descriptions.extend(_call_llama(client, batch, target_language))
 
     enriched_transactions = [
         tx.model_copy(update={"description": new_desc})
@@ -93,8 +86,7 @@ def _call_llama(client, transactions: list[Transaction], language: Language) -> 
     response = client.chat.completions.create(
         model=DEFAULT_MODEL,
         messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=4000,
-        response_format={"type": "json_object"},
+        max_tokens=1024,
         temperature=0.1,  # low temp for deterministic output
     )
 
@@ -109,8 +101,6 @@ def _call_llama(client, transactions: list[Transaction], language: Language) -> 
 
     try:
         enriched = json.loads(raw)
-        if isinstance(enriched, dict):
-            enriched = enriched.get("descriptions") or enriched.get("items") or enriched.get("transactions")
         if isinstance(enriched, list) and len(enriched) == len(transactions):
             parsed_strings = []
             for d in enriched:
@@ -126,3 +116,17 @@ def _call_llama(client, transactions: list[Transaction], language: Language) -> 
 
     # Fallback: return original descriptions unchanged
     return [tx.description for tx in transactions]
+
+
+def _coerce_language(language: Language | str | None) -> Language:
+    if isinstance(language, Language):
+        return language
+    if isinstance(language, str):
+        try:
+            return Language(language)
+        except ValueError:
+            try:
+                return Language[language.upper()]
+            except KeyError:
+                return Language.ENGLISH
+    return Language.ENGLISH

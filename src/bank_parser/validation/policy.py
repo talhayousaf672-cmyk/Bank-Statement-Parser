@@ -20,6 +20,7 @@ class ValidationPolicy(BaseModel):
         default_factory=lambda: {
             "ambiguous_amount",
             "amount_sign_mismatch",
+            "balance_mismatch",
             "currency_mismatch",
             "invalid_statement_period",
             "mixed_currency_balance",
@@ -29,7 +30,6 @@ class ValidationPolicy(BaseModel):
     warning_flag_codes: set[str] = Field(
         default_factory=lambda: {
             "missing_balance",
-            "balance_mismatch",
             "missing_account_number",
             "missing_currency",
             "invalid_account_number",

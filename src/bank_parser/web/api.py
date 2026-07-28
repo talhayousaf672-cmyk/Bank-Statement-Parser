@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import tempfile
 import uuid
 from pathlib import Path
@@ -15,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from bank_parser.core.bank_detector import detect_bank_id_from_header
 from bank_parser.core.models import Language, ParseResult
 from bank_parser.core.pdf_extractor import PdfExtractionError, extract_text_blocks
 from bank_parser.core.text_normalizer import normalize_text
@@ -23,7 +23,13 @@ from bank_parser.parsers import register_builtin_parsers
 from bank_parser.validation.reconciliation import validate_parse_result
 from bank_parser.validation.review_queue import ReviewQueueItem, build_review_queue
 from bank_parser.validation.summary import ValidationSummary, summarize_validation
-from bank_parser.ai.fallback_extractor import FallbackUnavailableError, extract_with_fallback
+from bank_parser.ai.fallback_extractor import (
+    FallbackUnavailableError,
+    extract_from_markdown,
+    extract_with_fallback,
+)
+from bank_parser.core.grid_cropper import get_cropped_regions
+from bank_parser.core.spatial_extractor import extract_markdown
 
 app = FastAPI(
     title="Bank Statement Parser API",
@@ -52,8 +58,6 @@ _registry = register_builtin_parsers()
 
 # In-memory store: statement_id -> ParseResult (replace with Supabase in Phase 5B)
 _statement_store: dict[str, ParseResult] = {}
-_parse_cache: dict[str, ParseResult] = {}
-_statement_cache_keys: dict[str, str] = {}
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -108,51 +112,71 @@ async def parse_statement(
     if file.content_type not in ("application/pdf", "application/octet-stream"):
         raise HTTPException(status_code=422, detail="Only PDF files are accepted.")
 
-    file_hash = hashlib.sha256(content).hexdigest()
-
     # Save upload to temp file
     suffix = Path(file.filename or "upload.pdf").suffix or ".pdf"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(content)
         tmp_path = Path(tmp.name)
 
-    # Extract + normalize
+    # Extract text blocks (for legacy pipeline fallback)
     try:
         blocks = extract_text_blocks(tmp_path)
     except PdfExtractionError as exc:
         tmp_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=f"PDF extraction failed: {exc}")
-    finally:
-        tmp_path.unlink(missing_ok=True)
 
-    normalized = normalize_text("\n".join(b.text for b in blocks))
-    effective_bank_id = _effective_bank_id(bank_id, normalized)
+    raw_text = "\n".join(block.text for block in blocks)
+    normalized = normalize_text(raw_text)
+    effective_bank_id = _resolve_bank_id(bank_id, normalized)
     if effective_bank_id != bank_id:
-        for b, l in _registry.list_parsers():
-            if b == effective_bank_id:
-                parser = _registry.create(effective_bank_id, l)
-                break
+        parser = _create_parser(effective_bank_id)
 
-    cache_key = f"{effective_bank_id}:{file_hash}"
-    cached_result = _parse_cache.get(cache_key)
-    if cached_result is not None:
-        statement_id = str(uuid.uuid4())
-        _statement_store[statement_id] = cached_result
-        _statement_cache_keys[statement_id] = cache_key
-        return _parse_response(
-            statement_id,
-            cached_result,
-            fallback_status="cached",
-            fallback_error=None,
-        )
+    # -----------------------------------------------------------------------
+    # New Spatial Pipeline: Grid Crop → Spatial Engine → AI (Markdown path)
+    # -----------------------------------------------------------------------
+    markdown_table: str = ""
+    try:
+        regions = get_cropped_regions(tmp_path)
+        markdown_table = extract_markdown(tmp_path, regions)
+    except Exception:
+        pass  # Spatial engine unavailable or failed — fall through to legacy path
+    finally:
+        tmp_path.unlink(missing_ok=True)  # PDF no longer needed after extraction
 
+    if markdown_table:
+        # New path: clean Markdown table → AI structures it
+        try:
+            fallback_gate = extract_from_markdown(
+                markdown_table,
+                effective_bank_id,
+                language=Language.SPANISH,
+            )
+            if fallback_gate:
+                parse_result = fallback_gate.parse_result
+                parse_result = validate_parse_result(parse_result)
+                statement_id = str(uuid.uuid4())
+                _statement_store[statement_id] = parse_result
+                summary = summarize_validation(parse_result)
+                return {
+                    "statement_id": statement_id,
+                    "transaction_count": len(parse_result.transactions),
+                    "export_readiness": summary.export_readiness.value,
+                    "warning_rows": summary.warning_rows,
+                    "error_rows": summary.error_rows,
+                    "ai_fallback_status": fallback_gate.status.value,
+                    "pipeline": "spatial",
+                }
+        except Exception:
+            pass  # Spatial+AI path failed — fall through to legacy
+
+    # -----------------------------------------------------------------------
+    # Legacy Pipeline: Raw Text → Regex Parser → AI Fallback
+    # -----------------------------------------------------------------------
     parse_result = parser.parse(normalized)
-
-    # Validate deterministic result
     parse_result = validate_parse_result(parse_result)
-    
-    # Try AI fallback if needed. If Groq returns malformed JSON or is unavailable,
-    # keep the deterministic parse result instead of failing the whole upload.
+
+    # Try AI fallback if needed. Keep the deterministic parse if AI is unavailable
+    # or returns malformed data, so the UI can still show/export review flags.
     fallback_status = "not_needed"
     fallback_error: str | None = None
     try:
@@ -171,14 +195,20 @@ async def parse_statement(
     except Exception as exc:
         fallback_status = "failed"
         fallback_error = str(exc)
-
     statement_id = str(uuid.uuid4())
     _statement_store[statement_id] = parse_result
-    _statement_cache_keys[statement_id] = cache_key
-    if parse_result.transactions:
-        _parse_cache[cache_key] = parse_result
 
-    return _parse_response(statement_id, parse_result, fallback_status, fallback_error)
+    summary = summarize_validation(parse_result)
+    return {
+        "statement_id": statement_id,
+        "transaction_count": len(parse_result.transactions),
+        "export_readiness": summary.export_readiness.value,
+        "warning_rows": summary.warning_rows,
+        "error_rows": summary.error_rows,
+        "ai_fallback_status": fallback_status,
+        "ai_fallback_error": fallback_error,
+        "pipeline": "legacy",
+    }
 
 
 @app.get("/api/validate/{statement_id}")
@@ -193,20 +223,19 @@ def export_statement(
     statement_id: str,
     background_tasks: BackgroundTasks,
     language: str = "en",
+    force: bool = False,
 ) -> FileResponse:
     """Export a validated statement to XLSX. Returns the file as a download."""
     result = _get_statement(statement_id)
 
     summary = summarize_validation(result)
-    if not result.transactions:
+    if not summary.export_ready and not force:
         raise HTTPException(
             status_code=422,
-            detail="No transactions were found. Parse with AI fallback successfully before exporting.",
-        )
-    if not summary.export_ready:
-        raise HTTPException(
-            status_code=422,
-            detail="Statement has blocking validation errors and cannot be exported.",
+            detail=(
+                "Statement has blocking validation errors. "
+                "Export with force=true to download an XLSX with review flags."
+            ),
         )
 
     try:
@@ -218,7 +247,8 @@ def export_statement(
     write_excel(result, out_path, language=lang)
 
     bank_id = result.metadata.bank_id
-    filename = f"{bank_id}_{statement_id[:8]}.xlsx"
+    suffix = "_needs_review" if not summary.export_ready else ""
+    filename = f"{bank_id}_{statement_id[:8]}{suffix}.xlsx"
     # Security: delete temp file after response is sent
     background_tasks.add_task(out_path.unlink, missing_ok=True)
     return FileResponse(
@@ -269,9 +299,6 @@ def enrich_statement(statement_id: str, language: str = "en") -> dict:
         from bank_parser.ai.enrichment import EnrichmentUnavailableError, enrich_descriptions
         enriched_result = enrich_descriptions(result, lang)
         _statement_store[statement_id] = enriched_result
-        cache_key = _statement_cache_keys.get(statement_id)
-        if cache_key is not None:
-            _parse_cache[cache_key] = enriched_result
         return {"status": "enriched", "transaction_count": len(enriched_result.transactions)}
     except EnrichmentUnavailableError as exc:
         return {"status": "unavailable", "reason": str(exc)}
@@ -311,51 +338,26 @@ def update_review_item(
     }
 
 
+def _create_parser(bank_id: str):
+    for registered_bank_id, language in _registry.list_parsers():
+        if registered_bank_id == bank_id:
+            return _registry.create(bank_id, language)
+    available = sorted({registered_bank_id for registered_bank_id, _ in _registry.list_parsers()})
+    raise HTTPException(
+        status_code=422,
+        detail=f"No parser for bank_id='{bank_id}'. Available: {available}",
+    )
+
+
+def _resolve_bank_id(selected_bank_id: str, normalized_text: str) -> str:
+    detected_bank_id = detect_bank_id_from_header(normalized_text)
+    if detected_bank_id is not None:
+        return detected_bank_id
+    return selected_bank_id
+
+
 def _get_statement(statement_id: str) -> ParseResult:
     result = _statement_store.get(statement_id)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Statement not found: {statement_id}")
     return result
-
-
-def _effective_bank_id(requested_bank_id: str, normalized_text: str) -> str:
-    if requested_bank_id != "generic_english":
-        return requested_bank_id
-
-    upper_text = normalized_text.upper()
-    bank_signals = [
-        ("meezan_bank", ("MEEZAN", "MEEZAN BANK")),
-        ("hbl", ("HBL", "HABIB BANK")),
-        ("ubl", ("UBL", "UNITED BANK")),
-        ("mcb_bank", ("MCB", "MUSLIM COMMERCIAL BANK")),
-        ("allied_bank", ("ALLIED BANK",)),
-        ("bank_alfalah", ("BANK ALFALAH", "ALFALAH")),
-        ("chase_bank", ("CHASE", "JPMORGAN")),
-        ("wells_fargo", ("WELLS FARGO",)),
-        ("bank_of_america", ("BANK OF AMERICA",)),
-    ]
-    for detected_bank_id, signals in bank_signals:
-        if any(signal in upper_text for signal in signals):
-            return detected_bank_id
-    return requested_bank_id
-
-
-def _parse_response(
-    statement_id: str,
-    parse_result: ParseResult,
-    fallback_status: str,
-    fallback_error: str | None,
-) -> dict:
-    summary = summarize_validation(parse_result)
-    response = {
-        "statement_id": statement_id,
-        "transaction_count": len(parse_result.transactions),
-        "export_readiness": summary.export_readiness.value,
-        "warning_rows": summary.warning_rows,
-        "error_rows": summary.error_rows,
-        "ai_fallback_status": fallback_status,
-        "bank_id": parse_result.metadata.bank_id,
-    }
-    if fallback_error:
-        response["ai_fallback_error"] = fallback_error
-    return response

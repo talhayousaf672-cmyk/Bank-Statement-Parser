@@ -249,9 +249,10 @@
     /* ── Summary strip ── */
     #summary-strip {
       display: none;
-      gap: 32px;
-      margin-bottom: 32px;
-      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 20px;
+      align-items: stretch;
+      flex-wrap: wrap;
     }
 
     #summary-strip.visible {
@@ -262,6 +263,9 @@
       display: flex;
       flex-direction: column;
       gap: 2px;
+      min-width: 112px;
+      border: 1px solid var(--gray-1);
+      padding: 10px 12px;
     }
 
     .stat-value {
@@ -280,11 +284,12 @@
     }
 
     .readiness-badge {
+      align-self: center;
       font-size: 11px;
       font-weight: 500;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      padding: 3px 8px;
+      padding: 8px 10px;
       border: 1px solid;
     }
 
@@ -381,11 +386,116 @@
     /* ── Flags section ── */
     #flags-section {
       display: none;
-      margin-top: 32px;
+      margin: 12px 0 24px;
     }
 
     #flags-section.visible {
       display: block;
+    }
+
+    .review-panel {
+      border: 1px solid var(--gray-1);
+    }
+
+    .review-panel.has-errors {
+      border-color: var(--red);
+    }
+
+    .review-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-bottom: 1px solid var(--gray-1);
+    }
+
+    .review-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--black);
+    }
+
+    .review-sub {
+      font-size: 12px;
+      color: var(--gray-6);
+    }
+
+    .review-spacer {
+      flex: 1;
+    }
+
+    .review-counts {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .count-pill {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 3px 7px;
+      border: 1px solid var(--gray-1);
+      color: var(--gray-6);
+      white-space: nowrap;
+    }
+
+    .count-error {
+      color: var(--red);
+      border-color: var(--red);
+    }
+
+    .count-warning {
+      color: var(--amber);
+      border-color: var(--amber);
+    }
+
+    .review-body {
+      padding: 10px 12px 12px;
+    }
+
+    .review-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .review-item {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 10px;
+      align-items: baseline;
+      font-size: 12px;
+    }
+
+    .review-row {
+      font-family: var(--mono);
+      color: var(--gray-4);
+    }
+
+    .review-message {
+      color: var(--gray-8);
+    }
+
+    .review-message strong {
+      color: var(--black);
+      font-weight: 500;
+    }
+
+    .review-details {
+      margin-top: 12px;
+      border-top: 1px solid var(--gray-1);
+      padding-top: 12px;
+    }
+
+    .review-details summary {
+      cursor: pointer;
+      color: var(--gray-6);
+      font-size: 12px;
+      font-weight: 500;
+      list-style-position: inside;
+    }
+
+    .review-details[open] summary {
+      margin-bottom: 12px;
     }
 
     .flag-row-sev-error {
@@ -401,6 +511,8 @@
       display: none;
       gap: 10px;
       margin-top: 24px;
+      align-items: center;
+      flex-wrap: wrap;
     }
 
     #result-actions.visible {
@@ -449,6 +561,48 @@
 
     .meta-item span {
       color: var(--gray-4);
+    }
+
+    @media (max-width: 720px) {
+      .site-header {
+        padding: 0 20px;
+      }
+
+      main {
+        padding: 32px 20px 72px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      #summary-strip {
+        gap: 10px;
+      }
+
+      .stat {
+        flex: 1 1 calc(50% - 10px);
+        min-width: 0;
+      }
+
+      .readiness-badge {
+        width: 100%;
+        text-align: center;
+      }
+
+      .review-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .review-spacer {
+        display: none;
+      }
+
+      .review-item {
+        grid-template-columns: 1fr;
+        gap: 2px;
+      }
     }
   </style>
 </head>
@@ -552,19 +706,37 @@
     </div>
 
     <div id="flags-section">
-      <p class="section-label">Review Flags</p>
-      <div class="table-wrap">
-        <table id="flags-table">
-          <thead>
-            <tr>
-              <th>Row</th>
-              <th>Code</th>
-              <th>Severity</th>
-              <th>Message</th>
-            </tr>
-          </thead>
-          <tbody id="flags-body"></tbody>
-        </table>
+      <div class="review-panel" id="review-panel">
+        <div class="review-head">
+          <div>
+            <div class="review-title" id="review-title">Review</div>
+            <div class="review-sub" id="review-sub">No flags</div>
+          </div>
+          <div class="review-spacer"></div>
+          <div class="review-counts">
+            <span class="count-pill count-error" id="review-error-count">0 errors</span>
+            <span class="count-pill count-warning" id="review-warning-count">0 warnings</span>
+          </div>
+        </div>
+        <div class="review-body" id="review-body">
+          <div class="review-list" id="review-priority-list"></div>
+          <details class="review-details" id="review-details">
+            <summary id="review-details-summary">Show all review flags</summary>
+            <div class="table-wrap">
+              <table id="flags-table">
+                <thead>
+                  <tr>
+                    <th>Row</th>
+                    <th>Code</th>
+                    <th>Severity</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody id="flags-body"></tbody>
+              </table>
+            </div>
+          </details>
+        </div>
       </div>
     </div>
 
@@ -580,6 +752,8 @@
     const API = '';  // same origin — empty string means relative URLs
     let statementId = null;
     let exportLang = 'es';
+    let exportReadiness = null;
+    let reviewSummary = { errors: 0, warnings: 0 };
 
     // ── Fetch parsers on load ──────────────────────────────────────────────────
     async function loadParsers() {
@@ -709,26 +883,18 @@
 
       const badge = document.getElementById('readiness-badge');
       const r = data.export_readiness;
-      badge.textContent = r.replace(/_/g, ' ');
+      badge.textContent = readinessLabel(r);
       badge.className = 'readiness-badge';
       if (r === 'ready') badge.classList.add('badge-ready');
       else if (r === 'ready_with_warnings') badge.classList.add('badge-warning');
       else badge.classList.add('badge-blocked');
 
       const exportBtn = document.getElementById('export-btn');
-      exportBtn.disabled = (r === 'blocked' || data.transaction_count === 0);
-      document.getElementById('enrich-btn').disabled = data.transaction_count === 0;
+      exportReadiness = r;
+      exportBtn.textContent = r === 'blocked' ? 'Export with Review Flags' : 'Export to Excel';
+      exportBtn.disabled = false;
+      document.getElementById('enrich-btn').disabled = false;
       document.getElementById('result-actions').classList.add('visible');
-
-      const fallback = (data.ai_fallback_status || 'unknown').replace(/_/g, ' ');
-      const fallbackError = data.ai_fallback_error ? ` ${data.ai_fallback_error}` : '';
-      if (data.transaction_count === 0) {
-        setResultStatus(`No transactions found. AI fallback: ${fallback}.${fallbackError}`);
-      } else if (data.ai_fallback_status === 'cached') {
-        setResultStatus('Loaded from the previous successful parse of this PDF.');
-      } else {
-        setResultStatus(`AI fallback: ${fallback}.${fallbackError}`);
-      }
     }
 
     // ── Load transactions ──────────────────────────────────────────────────────
@@ -776,11 +942,16 @@
       const r = await fetch(`${API}/api/review/${statementId}`);
       const data = await r.json();
 
-      if (!data.item_count) return;
+      const items = data.items || [];
+      const errors = items.filter(item => item.flag.severity === 'error');
+      const warnings = items.filter(item => item.flag.severity !== 'error');
+      reviewSummary = { errors: errors.length, warnings: warnings.length };
+      renderReviewPanel(items, errors, warnings);
+      if (!items.length) return;
 
       const tbody = document.getElementById('flags-body');
       tbody.innerHTML = '';
-      data.items.forEach(item => {
+      items.forEach(item => {
         const sev = item.flag.severity;
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -791,15 +962,78 @@
       `;
         tbody.appendChild(tr);
       });
-      document.getElementById('flags-section').classList.add('visible');
+    }
+
+    function renderReviewPanel(items, errors, warnings) {
+      const section = document.getElementById('flags-section');
+      const panel = document.getElementById('review-panel');
+      const title = document.getElementById('review-title');
+      const sub = document.getElementById('review-sub');
+      const priorityList = document.getElementById('review-priority-list');
+      const details = document.getElementById('review-details');
+      const detailsSummary = document.getElementById('review-details-summary');
+      const errorCount = document.getElementById('review-error-count');
+      const warningCount = document.getElementById('review-warning-count');
+
+      section.classList.add('visible');
+      panel.classList.toggle('has-errors', errors.length > 0);
+      errorCount.textContent = `${errors.length} ${plural(errors.length, 'error')}`;
+      warningCount.textContent = `${warnings.length} ${plural(warnings.length, 'warning')}`;
+      priorityList.innerHTML = '';
+      details.open = false;
+
+      if (!items.length) {
+        title.textContent = 'Ready';
+        sub.textContent = 'No review flags';
+        details.style.display = 'none';
+        return;
+      }
+
+      details.style.display = '';
+      detailsSummary.textContent = `Show all ${items.length} review ${plural(items.length, 'flag')}`;
+
+      if (errors.length) {
+        title.textContent = 'Needs review';
+        sub.textContent = 'Blocking issues found';
+        errors.slice(0, 3).forEach(item => priorityList.appendChild(reviewItem(item)));
+        if (errors.length > 3) {
+          priorityList.appendChild(reviewMore(`${errors.length - 3} more ${plural(errors.length - 3, 'error')}`));
+        }
+        return;
+      }
+
+      title.textContent = 'Ready with warnings';
+      sub.textContent = 'Export is available';
+      warnings.slice(0, 2).forEach(item => priorityList.appendChild(reviewItem(item)));
+      if (warnings.length > 2) {
+        priorityList.appendChild(reviewMore(`${warnings.length - 2} more ${plural(warnings.length - 2, 'warning')}`));
+      }
+    }
+
+    function reviewItem(item) {
+      const row = document.createElement('div');
+      row.className = 'review-item';
+      row.innerHTML = `
+        <div class="review-row">${item.row_number ? `Row ${item.row_number}` : 'Statement'}</div>
+        <div class="review-message"><strong>${esc(friendlyFlagCode(item.flag.code))}</strong> ${esc(item.flag.message)}</div>
+      `;
+      return row;
+    }
+
+    function reviewMore(text) {
+      const row = document.createElement('div');
+      row.className = 'review-item';
+      row.innerHTML = `<div></div><div class="review-message">${esc(text)}</div>`;
+      return row;
     }
 
     // ── Export ─────────────────────────────────────────────────────────────────
     document.getElementById('export-btn').addEventListener('click', async () => {
       if (!statementId) return;
-      setResultStatus('Exporting\u2026');
+      const force = exportReadiness === 'blocked';
+      setResultStatus(force ? 'Exporting with review flags...' : 'Exporting...');
       try {
-        const r = await fetch(`${API}/api/export/${statementId}?language=${exportLang}`, { method: 'POST' });
+        const r = await fetch(`${API}/api/export/${statementId}?language=${exportLang}&force=${force}`, { method: 'POST' });
         if (!r.ok) {
           const d = await r.json();
           setResultStatus(`Export failed: ${d.detail}`);
@@ -828,7 +1062,11 @@
       setResultStatus('');
       try {
         const r = await fetch(`${API}/api/enrich/${statementId}?language=${exportLang}`, { method: 'POST' });
-        const data = await r.json();
+        const data = await readJsonResponse(r);
+        if (!r.ok) {
+          setResultStatus(enrichErrorMessage(r.status, data.detail));
+          return;
+        }
         if (data.status === 'enriched') {
           setResultStatus('Descriptions enriched.');
           await loadTransactions();
@@ -836,7 +1074,7 @@
           setResultStatus(`Not enriched: ${data.reason || 'unknown'}`);
         }
       } catch (e) {
-        setResultStatus(`Error: ${e.message}`);
+        setResultStatus('AI enrichment unavailable. Keep the server running and check your connection.');
       } finally {
         btn.disabled = false;
         btn.textContent = 'Enrich with AI';
@@ -846,6 +1084,8 @@
     // ── Helpers ────────────────────────────────────────────────────────────────
     function clearResults() {
       statementId = null;
+      exportReadiness = null;
+      reviewSummary = { errors: 0, warnings: 0 };
       document.getElementById('results-divider').style.display = 'none';
       document.getElementById('summary-strip').classList.remove('visible');
       document.getElementById('meta-strip').classList.remove('visible');
@@ -853,6 +1093,8 @@
       document.getElementById('txn-table-wrap').style.display = 'none';
       document.getElementById('txn-body').innerHTML = '';
       document.getElementById('flags-body').innerHTML = '';
+      document.getElementById('review-priority-list').innerHTML = '';
+      document.getElementById('review-details').open = false;
       document.getElementById('flags-section').classList.remove('visible');
       document.getElementById('result-actions').classList.remove('visible');
       setResultStatus('');
@@ -867,6 +1109,37 @@
       const n = parseFloat(numStr);
       if (isNaN(n)) return numStr;
       return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function readinessLabel(value) {
+      if (value === 'ready') return 'Ready';
+      if (value === 'ready_with_warnings') return 'Ready with warnings';
+      return 'Needs review';
+    }
+
+    function friendlyFlagCode(code) {
+      return String(code || '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    function plural(count, word) {
+      return count === 1 ? word : `${word}s`;
+    }
+
+    async function readJsonResponse(response) {
+      try {
+        return await response.json();
+      } catch {
+        return {};
+      }
+    }
+
+    function enrichErrorMessage(status, detail) {
+      if (status === 404) return 'Statement expired. Parse the PDF again, then enrich.';
+      if (status === 503) return 'AI enrichment is not configured. Check GROQ_API_KEY in .env.';
+      if (status === 502) return detail || 'AI provider did not complete the request.';
+      return detail || 'AI enrichment failed.';
     }
   </script>
 </body>

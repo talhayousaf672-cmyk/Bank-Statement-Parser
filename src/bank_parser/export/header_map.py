@@ -103,25 +103,27 @@ HEADER_MAP: dict[Language, list[str]] = {
         "शेष",
         "मुद्रा",
     ],
+    Language.ENGLISH: [
+        "Bank ID",
+        "Account Number",
+        "Account Holder",
+        "Period Start",
+        "Period End",
+        "Parser Version",
+        "Language",
+        "Transaction Date",
+        "Value Date",
+        "Description",
+        "Reference",
+        "Debit",
+        "Credit",
+        "Amount",
+        "Balance",
+        "Currency",
+    ],
 }
 # fmt: on
 
 # English fallback (for CLI and internal use)
-HEADER_MAP_EN: list[str] = [
-    "Bank ID",
-    "Account Number",
-    "Account Holder",
-    "Period Start",
-    "Period End",
-    "Parser Version",
-    "Language",
-    "Transaction Date",
-    "Value Date",
-    "Description",
-    "Reference",
-    "Debit",
-    "Credit",
-    "Amount",
-    "Balance",
-    "Currency",
-]
+HEADER_MAP_EN: list[str] = HEADER_MAP[Language.ENGLISH]
+
