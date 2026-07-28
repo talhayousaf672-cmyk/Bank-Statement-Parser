@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from bank_parser.core.bank_detector import detect_bank_id_from_header
 from bank_parser.core.models import Language, ParseResult
 from bank_parser.core.pdf_extractor import PdfExtractionError, extract_text_blocks
 from bank_parser.core.text_normalizer import normalize_text
@@ -120,6 +121,12 @@ async def parse_statement(
         tmp_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=f"PDF extraction failed: {exc}")
 
+    raw_text = "\n".join(block.text for block in blocks)
+    normalized = normalize_text(raw_text)
+    effective_bank_id = _resolve_bank_id(bank_id, normalized)
+    if effective_bank_id != bank_id:
+        parser = _create_parser(effective_bank_id)
+
     # -----------------------------------------------------------------------
     # New Spatial Pipeline: Grid Crop → Spatial Engine → AI (Markdown path)
     # -----------------------------------------------------------------------
@@ -137,7 +144,7 @@ async def parse_statement(
         try:
             fallback_gate = extract_from_markdown(
                 markdown_table,
-                bank_id,
+                effective_bank_id,
                 language=Language.SPANISH,
             )
             if fallback_gate:
@@ -160,7 +167,6 @@ async def parse_statement(
     # -----------------------------------------------------------------------
     # Legacy Pipeline: Raw Text → Regex Parser → AI Fallback
     # -----------------------------------------------------------------------
-    normalized = normalize_text("\n".join(b.text for b in blocks))
     parse_result = parser.parse(normalized)
     parse_result = validate_parse_result(parse_result)
 
@@ -168,7 +174,7 @@ async def parse_statement(
     try:
         fallback_gate = extract_with_fallback(
             normalized,
-            bank_id,
+            effective_bank_id,
             language=Language.SPANISH,
             existing_result=parse_result,
         )
@@ -207,15 +213,19 @@ def export_statement(
     statement_id: str,
     background_tasks: BackgroundTasks,
     language: str = "en",
+    force: bool = False,
 ) -> FileResponse:
     """Export a validated statement to XLSX. Returns the file as a download."""
     result = _get_statement(statement_id)
 
     summary = summarize_validation(result)
-    if not summary.export_ready:
+    if not summary.export_ready and not force:
         raise HTTPException(
             status_code=422,
-            detail="Statement has blocking validation errors and cannot be exported.",
+            detail=(
+                "Statement has blocking validation errors. "
+                "Export with force=true to download an XLSX with review flags."
+            ),
         )
 
     try:
@@ -227,7 +237,8 @@ def export_statement(
     write_excel(result, out_path, language=lang)
 
     bank_id = result.metadata.bank_id
-    filename = f"{bank_id}_{statement_id[:8]}.xlsx"
+    suffix = "_needs_review" if not summary.export_ready else ""
+    filename = f"{bank_id}_{statement_id[:8]}{suffix}.xlsx"
     # Security: delete temp file after response is sent
     background_tasks.add_task(out_path.unlink, missing_ok=True)
     return FileResponse(
@@ -273,12 +284,14 @@ def enrich_statement(statement_id: str, language: str = "en") -> dict:
         raise HTTPException(status_code=422, detail=f"Unsupported language: {language}")
 
     try:
-        from bank_parser.ai.enrichment import enrich_descriptions
+        from bank_parser.ai.enrichment import EnrichmentUnavailableError, enrich_descriptions
         enriched_result = enrich_descriptions(result, lang)
         _statement_store[statement_id] = enriched_result
         return {"status": "enriched", "transaction_count": len(enriched_result.transactions)}
+    except EnrichmentUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=502, detail=f"AI enrichment failed: {exc}")
 
 
 
@@ -311,6 +324,24 @@ def update_review_item(
         "notes": notes,
         "message": "Status updated (in-memory only; connect SQLiteReviewQueueStore for persistence).",
     }
+
+
+def _create_parser(bank_id: str):
+    for registered_bank_id, language in _registry.list_parsers():
+        if registered_bank_id == bank_id:
+            return _registry.create(bank_id, language)
+    available = sorted({registered_bank_id for registered_bank_id, _ in _registry.list_parsers()})
+    raise HTTPException(
+        status_code=422,
+        detail=f"No parser for bank_id='{bank_id}'. Available: {available}",
+    )
+
+
+def _resolve_bank_id(selected_bank_id: str, normalized_text: str) -> str:
+    detected_bank_id = detect_bank_id_from_header(normalized_text)
+    if detected_bank_id is not None:
+        return detected_bank_id
+    return selected_bank_id
 
 
 def _get_statement(statement_id: str) -> ParseResult:

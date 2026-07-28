@@ -45,7 +45,7 @@ class EnrichmentUnavailableError(RuntimeError):
 
 def enrich_descriptions(
     parse_result: ParseResult,
-    language: Language,
+    language: Language | None = None,
     api_key: str | None = None,
 ) -> ParseResult:
     """Enrich transaction descriptions using Llama via Groq.
@@ -58,7 +58,8 @@ def enrich_descriptions(
     except ValueError as exc:
         raise EnrichmentUnavailableError(str(exc)) from exc
 
-    enriched_descriptions = _call_llama(client, parse_result.transactions, language)
+    target_language = language or parse_result.metadata.language
+    enriched_descriptions = _call_llama(client, parse_result.transactions, target_language)
 
     enriched_transactions = [
         tx.model_copy(update={"description": new_desc})

@@ -26,6 +26,7 @@ dev = ["pytest>=8.2", "ruff>=0.5"]
 
 [project.scripts]
 bank-parser = "bank_parser.cli:main"
+bank-parser-desktop = "bank_parser.desktop.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
