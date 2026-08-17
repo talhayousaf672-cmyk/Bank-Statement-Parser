@@ -10,6 +10,7 @@ Uses the 70B model because structured JSON extraction requires high accuracy.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -20,6 +21,8 @@ from bank_parser.ai.groq_client import DEFAULT_MODEL, get_groq_client
 from bank_parser.core.models import Language, ParseResult, ReviewSeverity
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 _SCHEMA_MAPPER_PROMPT = """\
 You are a precise financial data schema mapper.
@@ -68,6 +71,39 @@ class ColumnMap(BaseModel):
     amount: int | None = None
     balance: int | None = None
     currency: str | None = None
+
+
+def _heuristic_column_map(header_cells: list[str]) -> ColumnMap:
+    """Heuristic header mapping fallback when AI API is unavailable."""
+    col_map = ColumnMap()
+    for idx, raw_h in enumerate(header_cells):
+        h = raw_h.lower().strip()
+        if not h:
+            continue
+        if "val" in h and "date" in h:
+            col_map.value_date = idx
+        elif "date" in h or "time" in h or h.endswith("ate"):
+            if col_map.transaction_date is None:
+                col_map.transaction_date = idx
+        elif any(k in h for k in ("desc", "narrat", "partic", "detail")):
+            col_map.description = idx
+        elif any(k in h for k in ("ref", "chq", "cheque", "instrument", "doc")):
+            col_map.reference = idx
+        elif any(k in h for k in ("debit", "withdrawal", "withdraw", "dr", "out")):
+            col_map.debit = idx
+        elif any(k in h for k in ("credit", "deposit", "cr", "in")):
+            col_map.credit = idx
+        elif "amount" in h or "amt" in h:
+            col_map.amount = idx
+        elif "bal" in h:
+            col_map.balance = idx
+
+    # If transaction_date was still not found, default to first column (column 0)
+    if col_map.transaction_date is None and len(header_cells) > 0:
+        col_map.transaction_date = 0
+
+    return col_map
+
 
 
 
@@ -330,31 +366,38 @@ def extract_from_markdown(
     table_lines = markdown_table.strip().split("\n")
     sample_table = "\n".join(table_lines[:6])
 
+    # Extract header cells for fallback/heuristic mapping
+    header_cells = []
+    if table_lines and table_lines[0].strip().startswith("|"):
+        header_cells = [c.strip() for c in table_lines[0].split("|")[1:-1]]
+
+    col_map: ColumnMap | None = None
+
     prompt = _SCHEMA_MAPPER_PROMPT.format(markdown_table=sample_table)
 
     try:
         client = get_groq_client(api_key)
-    except ValueError as exc:
-        raise FallbackUnavailableError(str(exc)) from exc
+        response = client.chat.completions.create(
+            model=DEFAULT_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1024,
+            temperature=0.0,
+        )
 
-    response = client.chat.completions.create(
-        model=DEFAULT_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=1024,
-        temperature=0.0,
-    )
+        raw = response.choices[0].message.content.strip()
+        if raw.startswith("```"):
+            lines = raw.split("\n")
+            raw = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        raw = raw.strip()
 
-    raw = response.choices[0].message.content.strip()
-    if raw.startswith("```"):
-        lines = raw.split("\n")
-        raw = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-    raw = raw.strip()
-
-    try:
         data = json.loads(raw)
         col_map = ColumnMap.model_validate(data)
     except Exception as exc:
-        raise ValueError(f"AI Schema Mapper returned invalid JSON/Schema: {exc}\n\nRaw:\n{raw}") from exc
+        logger.warning("Groq AI schema mapper unavailable (%s), falling back to heuristic header mapping.", exc)
+        col_map = _heuristic_column_map(header_cells)
+
+    if col_map is None:
+        col_map = _heuristic_column_map(header_cells)
 
     # 2. Deterministically parse ALL rows using the AI's column map
     from bank_parser.core.models import StatementMetadata, Transaction

@@ -7,10 +7,16 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Signal
 
 from bank_parser.ai.enrichment import EnrichmentUnavailableError, enrich_descriptions
-from bank_parser.ai.fallback_extractor import FallbackUnavailableError, extract_with_fallback
+from bank_parser.ai.fallback_extractor import (
+    FallbackUnavailableError,
+    extract_from_markdown,
+    extract_with_fallback,
+)
 from bank_parser.core.bank_detector import detect_bank_id_from_header
+from bank_parser.core.grid_cropper import get_cropped_regions
 from bank_parser.core.models import Language, ParseResult
 from bank_parser.core.pdf_extractor import PdfExtractionError, extract_text_blocks
+from bank_parser.core.spatial_extractor import extract_markdown
 from bank_parser.core.text_normalizer import normalize_text
 from bank_parser.parsers import register_builtin_parsers
 from bank_parser.validation.reconciliation import validate_parse_result
@@ -32,15 +38,34 @@ class ParseWorker(QThread):
         self._selected_bank_id = selected_bank_id
 
     def run(self) -> None:
+        # 1. Quick text extraction for bank ID detection and legacy fallback
         try:
             blocks = extract_text_blocks(self._pdf_path)
-        except PdfExtractionError as exc:
-            self.error.emit(str(exc))
-            return
+            normalized = normalize_text("\n".join(block.text for block in blocks))
+            bank_id = _resolve_bank_id(self._selected_bank_id, normalized)
+        except Exception:
+            normalized = ""
+            bank_id = self._selected_bank_id
 
-        normalized = normalize_text("\n".join(block.text for block in blocks))
-        bank_id = _resolve_bank_id(self._selected_bank_id, normalized)
+        # 2. Try Spatial Pipeline (Camelot/Docling Grid Cropper -> Clean Markdown Table)
+        try:
+            regions = get_cropped_regions(self._pdf_path)
+            markdown_table = extract_markdown(self._pdf_path, regions)
+            if markdown_table:
+                gate = extract_from_markdown(
+                    markdown_table,
+                    bank_id,
+                    language=_PARSER_LANGUAGE,
+                )
+                if gate and len(gate.parse_result.transactions) > 0:
+                    result = validate_parse_result(gate.parse_result)
+                    summary = summarize_validation(result)
+                    self.finished.emit(result, summary)
+                    return
+        except Exception:
+            pass  # Fall through to legacy regex parser
 
+        # 3. Fallback to built-in regex parser / legacy extraction
         try:
             parser = _REGISTRY.create(bank_id, _PARSER_LANGUAGE)
         except LookupError as exc:
