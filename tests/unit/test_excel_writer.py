@@ -39,7 +39,7 @@ def _make_result(language: Language = Language.SPANISH, *, with_flags: bool = Fa
             bank_id="test_bank",
             language=language,
             account_number="12345678",
-            account_holder="Umer Kashif",
+            account_holder="John Doe",
             currency="USD",
         ),
         transactions=[tx],

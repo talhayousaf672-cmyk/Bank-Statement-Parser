@@ -38,7 +38,7 @@ class TestHBLParser:
         result = HBLParser().parse(text)
         assert result.metadata.bank_id == "hbl"
         assert result.metadata.account_number == "PK36HABB0000123456789012"
-        assert result.metadata.account_holder == "UMER KASHIF"
+        assert result.metadata.account_holder == "JOHN DOE"
         assert result.metadata.currency == "PKR"
         assert str(result.metadata.statement_period_start) == "2026-01-01"
         assert str(result.metadata.statement_period_end) == "2026-01-31"

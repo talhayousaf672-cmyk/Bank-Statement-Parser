@@ -8,7 +8,7 @@ def test_statement_metadata_matches_output_model_fields() -> None:
         bank_id="hbl",
         language=Language.URDU,
         account_number="123456789",
-        account_holder="Talha",
+        account_holder="Jane Doe",
         currency="PKR",
         statement_period_start="2026-01-01",
         statement_period_end="2026-01-31",
@@ -17,7 +17,7 @@ def test_statement_metadata_matches_output_model_fields() -> None:
 
     assert metadata.bank_id == "hbl"
     assert metadata.language == Language.URDU
-    assert metadata.account_holder == "Talha"
+    assert metadata.account_holder == "Jane Doe"
     assert metadata.statement_period_start.isoformat() == "2026-01-01"
     assert metadata.statement_period_end.isoformat() == "2026-01-31"
 

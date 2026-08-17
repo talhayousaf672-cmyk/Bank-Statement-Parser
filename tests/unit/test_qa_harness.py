@@ -31,7 +31,7 @@ def _parse_result(balance: Decimal) -> ParseResult:
             bank_id="hbl",
             language=Language.URDU,
             account_number="123456789",
-            account_holder="Talha",
+            account_holder="Jane Doe",
             currency="PKR",
             statement_period_start="2026-01-01",
             statement_period_end="2026-01-31",

@@ -39,3 +39,10 @@ TALHA_WORK_SUMMARY.md
 .env
 .env.*
 !.env.example
+
+# Sensitive bank statements & PDFs
+sample_pdfs/
+statements/
+*.pdf
+!tests/fixtures/pdfs/english_statement.pdf
+
