@@ -18,9 +18,9 @@ try:
 except ImportError:
     pass  # python-dotenv not installed — rely on real env vars
 
-# Default model: 70B is best for JSON extraction; 8B for simple enrichment
-DEFAULT_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-FAST_MODEL = "llama-3.1-8b-instant"  # for simpler tasks like description enrichment
+# Default model: openai/gpt-oss-120b is best for reasoning/JSON extraction; openai/gpt-oss-20b for fast tasks
+DEFAULT_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+FAST_MODEL = os.environ.get("GROQ_FAST_MODEL", "openai/gpt-oss-20b")
 
 
 def get_groq_client(api_key: str | None = None):

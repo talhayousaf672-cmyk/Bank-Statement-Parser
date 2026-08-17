@@ -58,7 +58,7 @@ def test_ubl_parser_does_not_export_meezan_statement_as_ubl(tmp_path: Path) -> N
     assert result.metadata.bank_id == "meezan_bank"
     assert result.metadata.account_number == "01010123456789"
     assert str(result.metadata.statement_period_start) == "2026-01-01"
-    assert wb["Statement"].cell(row=2, column=1).value == "meezan_bank"
+    assert wb["Statement"].cell(row=2, column=1).value == "Meezan Bank"
 
 
 def test_ubl_parser_delegates_headerless_meezan_layout_to_meezan_parser() -> None:
