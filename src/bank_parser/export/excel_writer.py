@@ -104,9 +104,19 @@ def _write_statement_sheet(
         ws.column_dimensions[col_letter].width = min(max_len + 4, 50)
 
 
+_BANK_ACRONYMS = {
+    "hbl": "HBL",
+    "ubl": "UBL",
+    "mcb": "MCB",
+    "mcb_bank": "MCB Bank",
+}
+
+
 def _bank_label(bank_id: str) -> str:
     if bank_id == "generic_english":
         return "AI Fallback"
+    if bank_id.lower() in _BANK_ACRONYMS:
+        return _BANK_ACRONYMS[bank_id.lower()]
     return bank_id.replace("_", " ").title()
 
 

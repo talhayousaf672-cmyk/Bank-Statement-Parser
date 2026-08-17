@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Sequence
 
 from PySide6.QtCore import QThread, Signal
 
@@ -26,8 +27,53 @@ _REGISTRY = register_builtin_parsers()
 _PARSER_LANGUAGE = Language.SPANISH
 
 
+def parse_pdf_statement(
+    pdf_path: Path,
+    selected_bank_id: str = "generic_english",
+    language: Language = _PARSER_LANGUAGE,
+) -> tuple[ParseResult, ValidationSummary]:
+    """Extract, parse, and validate a PDF statement via spatial and fallback pipelines."""
+    # 1. Quick text extraction for bank ID detection and legacy fallback
+    try:
+        blocks = extract_text_blocks(pdf_path)
+        normalized = normalize_text("\n".join(block.text for block in blocks))
+        bank_id = _resolve_bank_id(selected_bank_id, normalized)
+    except Exception:
+        normalized = ""
+        bank_id = selected_bank_id
+
+    # 2. Try Spatial Pipeline (Camelot/Docling Grid Cropper -> Clean Markdown Table)
+    try:
+        regions = get_cropped_regions(pdf_path)
+        markdown_table = extract_markdown(pdf_path, regions)
+        if markdown_table:
+            gate = extract_from_markdown(
+                markdown_table,
+                bank_id,
+                language=language,
+            )
+            if gate and len(gate.parse_result.transactions) > 0:
+                result = validate_parse_result(gate.parse_result)
+                summary = summarize_validation(result)
+                return result, summary
+    except Exception:
+        pass  # Fall through to legacy regex parser
+
+    # 3. Fallback to built-in regex parser / legacy extraction
+    try:
+        parser = _REGISTRY.create(bank_id, language)
+    except LookupError as exc:
+        raise ValueError(f"No parser available for bank '{bank_id}': {exc}") from exc
+
+    result = parser.parse(normalized)
+    result = validate_parse_result(result)
+    result = _apply_fallback_if_needed(normalized, bank_id, result)
+    summary = summarize_validation(result)
+    return result, summary
+
+
 class ParseWorker(QThread):
-    """Extract, parse, and validate a PDF without blocking the UI."""
+    """Extract, parse, and validate a single PDF without blocking the UI."""
 
     finished = Signal(object, object)
     error = Signal(str)
@@ -38,50 +84,46 @@ class ParseWorker(QThread):
         self._selected_bank_id = selected_bank_id
 
     def run(self) -> None:
-        # 1. Quick text extraction for bank ID detection and legacy fallback
         try:
-            blocks = extract_text_blocks(self._pdf_path)
-            normalized = normalize_text("\n".join(block.text for block in blocks))
-            bank_id = _resolve_bank_id(self._selected_bank_id, normalized)
-        except Exception:
-            normalized = ""
-            bank_id = self._selected_bank_id
-
-        # 2. Try Spatial Pipeline (Camelot/Docling Grid Cropper -> Clean Markdown Table)
-        try:
-            regions = get_cropped_regions(self._pdf_path)
-            markdown_table = extract_markdown(self._pdf_path, regions)
-            if markdown_table:
-                gate = extract_from_markdown(
-                    markdown_table,
-                    bank_id,
-                    language=_PARSER_LANGUAGE,
-                )
-                if gate and len(gate.parse_result.transactions) > 0:
-                    result = validate_parse_result(gate.parse_result)
-                    summary = summarize_validation(result)
-                    self.finished.emit(result, summary)
-                    return
-        except Exception:
-            pass  # Fall through to legacy regex parser
-
-        # 3. Fallback to built-in regex parser / legacy extraction
-        try:
-            parser = _REGISTRY.create(bank_id, _PARSER_LANGUAGE)
-        except LookupError as exc:
-            self.error.emit(str(exc))
-            return
-
-        try:
-            result = parser.parse(normalized)
-            result = validate_parse_result(result)
-            result = _apply_fallback_if_needed(normalized, bank_id, result)
-            summary = summarize_validation(result)
+            result, summary = parse_pdf_statement(self._pdf_path, self._selected_bank_id)
+            self.finished.emit(result, summary)
         except Exception as exc:
             self.error.emit(str(exc))
-            return
 
-        self.finished.emit(result, summary)
+
+class BatchParseWorker(QThread):
+    """Parse multiple PDF statements in sequence without blocking the UI."""
+
+    file_started = Signal(object, int, int)  # (Path, current_index, total_count)
+    file_finished = Signal(object, object, object)  # (Path, ParseResult, ValidationSummary)
+    file_error = Signal(object, str)  # (Path, error_message)
+    all_finished = Signal(dict)  # {Path: (ParseResult, ValidationSummary)}
+
+    def __init__(self, pdf_paths: Sequence[Path], selected_bank_id: str) -> None:
+        super().__init__()
+        self._pdf_paths = list(pdf_paths)
+        self._selected_bank_id = selected_bank_id
+        self._is_cancelled = False
+
+    def cancel(self) -> None:
+        self._is_cancelled = True
+
+    def run(self) -> None:
+        results: dict[Path, tuple[ParseResult, ValidationSummary]] = {}
+        total = len(self._pdf_paths)
+
+        for idx, pdf_path in enumerate(self._pdf_paths):
+            if self._is_cancelled:
+                break
+            self.file_started.emit(pdf_path, idx + 1, total)
+            try:
+                result, summary = parse_pdf_statement(pdf_path, self._selected_bank_id)
+                results[pdf_path] = (result, summary)
+                self.file_finished.emit(pdf_path, result, summary)
+            except Exception as exc:
+                self.file_error.emit(pdf_path, str(exc))
+
+        self.all_finished.emit(results)
 
 
 class EnrichWorker(QThread):
