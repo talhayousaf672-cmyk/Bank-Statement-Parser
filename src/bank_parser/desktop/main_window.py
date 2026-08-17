@@ -157,7 +157,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(sidebar_widget)
         splitter.addWidget(editor_widget)
         splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 3)
+        splitter.setStretchFactor(1, 4)
 
         main_layout.addWidget(splitter, stretch=1)
         main_layout.addLayout(self._build_action_row())
@@ -165,6 +165,7 @@ class MainWindow(QMainWindow):
     def _build_sidebar(self) -> QWidget:
         panel = QFrame()
         panel.setObjectName("card")
+        panel.setMinimumWidth(260)
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
@@ -175,7 +176,7 @@ class MainWindow(QMainWindow):
 
         # Button row: Add PDFs, Clear
         btn_row = QHBoxLayout()
-        self._add_files_btn = QPushButton("➕ Add PDF(s)")
+        self._add_files_btn = QPushButton("Add PDFs...")
         self._add_files_btn.clicked.connect(self._choose_pdfs)
         self._clear_btn = QPushButton("Clear")
         self._clear_btn.clicked.connect(self._clear_queue)
@@ -189,7 +190,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._queue_list, stretch=1)
 
         # Parse buttons
-        self._parse_all_btn = QPushButton("⚡ Parse All Statements")
+        self._parse_all_btn = QPushButton("Parse All Statements")
         self._parse_all_btn.setObjectName("primaryBtn")
         self._parse_all_btn.clicked.connect(self._parse_all)
         layout.addWidget(self._parse_all_btn)
@@ -216,11 +217,11 @@ class MainWindow(QMainWindow):
         table_header_row.addWidget(tbl_lbl)
         table_header_row.addStretch()
 
-        self._add_row_btn = QPushButton("➕ Add Row")
+        self._add_row_btn = QPushButton("Add Row")
         self._add_row_btn.clicked.connect(self._add_transaction_row)
-        self._del_row_btn = QPushButton("🗑️ Delete Selected Row")
+        self._del_row_btn = QPushButton("Delete Row")
         self._del_row_btn.clicked.connect(self._delete_transaction_row)
-        self._recalc_btn = QPushButton("🔄 Re-Validate")
+        self._recalc_btn = QPushButton("Re-Validate")
         self._recalc_btn.clicked.connect(self._revalidate_active)
 
         table_header_row.addWidget(self._add_row_btn)
@@ -236,61 +237,89 @@ class MainWindow(QMainWindow):
     def _build_metadata_card(self) -> QFrame:
         card = QFrame()
         card.setObjectName("card")
-        grid = QGridLayout(card)
-        grid.setContentsMargins(12, 10, 12, 10)
-        grid.setColumnStretch(6, 1)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(14, 12, 14, 12)
+        card_layout.setSpacing(10)
+
+        # 1. Top Metrics Bar (Evenly spread out across full card width)
+        metrics_row = QHBoxLayout()
+        metrics_row.setSpacing(20)
 
         self._total_label = QLabel("0")
         self._clean_label = QLabel("0")
         self._warning_label = QLabel("0")
         self._error_label = QLabel("0")
 
-        for index, (caption, value) in enumerate(
-            (
-                ("Transactions", self._total_label),
-                ("Clean", self._clean_label),
-                ("Warnings", self._warning_label),
-                ("Errors", self._error_label),
-            )
+        for caption, val_label in (
+            ("Transactions", self._total_label),
+            ("Clean", self._clean_label),
+            ("Warnings", self._warning_label),
+            ("Errors", self._error_label),
         ):
-            grid.addWidget(QLabel(caption), 0, index)
-            value.setObjectName("number")
-            grid.addWidget(value, 1, index)
+            box = QVBoxLayout()
+            box.setSpacing(2)
+            lbl = QLabel(caption)
+            lbl.setStyleSheet("color: #666666; font-size: 11px; font-weight: 500;")
+            val_label.setObjectName("number")
+            box.addWidget(lbl)
+            box.addWidget(val_label)
+            metrics_row.addLayout(box)
+
+        metrics_row.addStretch()
 
         self._status_badge = QLabel("No Statement Loaded")
         self._status_badge.setObjectName("statusBadge")
-        grid.addWidget(self._status_badge, 0, 4, 2, 2)
+        self._status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        metrics_row.addWidget(self._status_badge)
 
-        # Metadata fields (Editable)
-        grid.addWidget(QLabel("Bank ID:"), 2, 0)
+        card_layout.addLayout(metrics_row)
+
+        # Separator line
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        sep.setStyleSheet("color: #eeeeee; background-color: #eeeeee;")
+        card_layout.addWidget(sep)
+
+        # 2. Metadata input grid (Spans 100% width, equal stretch on columns 1, 3, 5)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(8)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
+        grid.setColumnStretch(5, 1)
+
+        grid.addWidget(QLabel("Bank ID:"), 0, 0)
         self._meta_bank = QLineEdit("-")
         self._meta_bank.editingFinished.connect(self._on_metadata_edited)
-        grid.addWidget(self._meta_bank, 2, 1)
+        grid.addWidget(self._meta_bank, 0, 1)
 
-        grid.addWidget(QLabel("Account Holder:"), 2, 2)
+        grid.addWidget(QLabel("Account Holder:"), 0, 2)
         self._meta_holder = QLineEdit("-")
         self._meta_holder.editingFinished.connect(self._on_metadata_edited)
-        grid.addWidget(self._meta_holder, 2, 3)
+        grid.addWidget(self._meta_holder, 0, 3)
 
-        grid.addWidget(QLabel("Account No:"), 2, 4)
+        grid.addWidget(QLabel("Account No:"), 0, 4)
         self._meta_account = QLineEdit("-")
         self._meta_account.editingFinished.connect(self._on_metadata_edited)
-        grid.addWidget(self._meta_account, 2, 5)
+        grid.addWidget(self._meta_account, 0, 5)
 
-        grid.addWidget(QLabel("Currency:"), 3, 0)
+        grid.addWidget(QLabel("Currency:"), 1, 0)
         self._meta_currency = QLineEdit("-")
         self._meta_currency.editingFinished.connect(self._on_metadata_edited)
-        grid.addWidget(self._meta_currency, 3, 1)
+        grid.addWidget(self._meta_currency, 1, 1)
 
-        grid.addWidget(QLabel("Period Start:"), 3, 2)
+        grid.addWidget(QLabel("Period Start:"), 1, 2)
         self._meta_start = QLineEdit("-")
         self._meta_start.editingFinished.connect(self._on_metadata_edited)
-        grid.addWidget(self._meta_start, 3, 3)
+        grid.addWidget(self._meta_start, 1, 3)
 
-        grid.addWidget(QLabel("Period End:"), 3, 4)
+        grid.addWidget(QLabel("Period End:"), 1, 4)
         self._meta_end = QLineEdit("-")
         self._meta_end.editingFinished.connect(self._on_metadata_edited)
-        grid.addWidget(self._meta_end, 3, 5)
+        grid.addWidget(self._meta_end, 1, 5)
+
+        card_layout.addLayout(grid)
 
         return card
 
@@ -298,7 +327,7 @@ class MainWindow(QMainWindow):
         card = QFrame()
         card.setObjectName("card")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setContentsMargins(14, 8, 14, 8)
 
         row = QHBoxLayout()
         self._review_title = QLabel("Review: no flags")
@@ -353,13 +382,13 @@ class MainWindow(QMainWindow):
         self._export_single_csv_btn = QPushButton("Export Active (CSV)")
         self._export_single_csv_btn.clicked.connect(lambda: self._export_statement("csv"))
 
-        self._bulk_export_btn = QPushButton("📦 Bulk Export All (Excel)")
+        self._bulk_export_btn = QPushButton("Bulk Export All (Excel)")
         self._bulk_export_btn.clicked.connect(lambda: self._bulk_export("excel"))
 
-        self._bulk_export_csv_btn = QPushButton("📦 Bulk Export All (CSV)")
+        self._bulk_export_csv_btn = QPushButton("Bulk Export All (CSV)")
         self._bulk_export_csv_btn.clicked.connect(lambda: self._bulk_export("csv"))
 
-        self._enrich_btn = QPushButton("✨ AI Description Enrichment")
+        self._enrich_btn = QPushButton("AI Description Enrichment")
         self._enrich_btn.clicked.connect(self._enrich_active)
 
         row.addWidget(self._message)
@@ -375,16 +404,19 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(
             """
             QLabel#title { font-size: 18px; font-weight: 600; color: #111111; }
-            QLabel#sectionLabel { font-size: 12px; font-weight: 600; text-transform: uppercase; color: #444444; }
+            QLabel#sectionLabel { font-size: 11px; font-weight: 600; text-transform: uppercase; color: #555555; }
             QLabel#number { font-size: 20px; font-weight: 600; font-family: Consolas, monospace; color: #111111; }
             QLabel#reviewTitle { font-weight: 600; color: #111111; }
             QLabel#message { color: #555555; }
-            QLabel#statusBadge { border: 1px solid #166534; color: #166534; padding: 6px 12px; background: #ffffff; font-weight: 500; }
+            QLabel#statusBadge { border: 1px solid #166534; color: #166534; padding: 6px 14px; background: #f0fdf4; font-weight: 600; border-radius: 3px; }
             QFrame#card { border: 1px solid #e0e0e0; background: #ffffff; border-radius: 4px; }
-            QTableWidget { background: #ffffff; color: #111111; alternate-background-color: #fafafa; gridline-color: #ebebeb; }
-            QHeaderView::section { background: #f0f0f0; color: #111111; padding: 6px; border: 1px solid #e0e0e0; font-weight: 600; }
+            QLineEdit { border: 1px solid #cccccc; border-radius: 3px; padding: 4px 6px; background: #ffffff; color: #111111; }
+            QLineEdit:focus { border: 1px solid #1f3864; }
+            QTableWidget { background: #ffffff; color: #111111; alternate-background-color: #fafafa; gridline-color: #ebebeb; border: 1px solid #e0e0e0; }
+            QHeaderView::section { background: #f5f5f5; color: #111111; padding: 6px; border: 1px solid #e0e0e0; font-weight: 600; }
             QPushButton#primaryBtn { background: #1f3864; color: #ffffff; font-weight: 600; padding: 6px 12px; }
             QListWidget { background: #ffffff; border: 1px solid #e0e0e0; }
+            QListWidget::item { padding: 6px; border-bottom: 1px solid #f0f0f0; }
             QListWidget::item:selected { background: #e8f0fe; color: #1f3864; font-weight: 600; }
             """
         )
@@ -404,7 +436,7 @@ class MainWindow(QMainWindow):
                 entry = StatementEntry(p)
                 self._statements[p.name] = entry
 
-                item = QListWidgetItem(f"📄 {p.name}\n   Status: Queued")
+                item = QListWidgetItem(f"{p.name}\n  Status: Queued")
                 item.setData(Qt.ItemDataRole.UserRole, p.name)
                 self._queue_list.addItem(item)
 
@@ -451,11 +483,11 @@ class MainWindow(QMainWindow):
                     bank_name = _BANK_LABELS.get(entry.parse_result.metadata.bank_id, entry.parse_result.metadata.bank_id)
                     tx_count = len(entry.parse_result.transactions)
                     status_str = entry.summary.export_readiness.value if entry.summary else "parsed"
-                    item.setText(f"📄 {filename}\n   {bank_name} | {tx_count} txs | {status_str}")
+                    item.setText(f"{filename}\n  {bank_name} | {tx_count} txs | {status_str}")
                 elif entry.error_message:
-                    item.setText(f"📄 {filename}\n   ❌ Error: {entry.error_message[:20]}")
+                    item.setText(f"{filename}\n  Error: {entry.error_message[:20]}")
                 else:
-                    item.setText(f"📄 {filename}\n   Status: {entry.status}")
+                    item.setText(f"{filename}\n  Status: {entry.status}")
                 break
 
     # -----------------------------------------------------------------------
@@ -571,9 +603,9 @@ class MainWindow(QMainWindow):
         self._status_badge.setText(status_text)
 
         if summary.export_ready:
-            self._status_badge.setStyleSheet("border: 1px solid #166534; color: #166534; padding: 6px 12px; background: #f0fdf4;")
+            self._status_badge.setStyleSheet("border: 1px solid #166534; color: #166534; padding: 6px 14px; background: #f0fdf4; font-weight: 600; border-radius: 3px;")
         else:
-            self._status_badge.setStyleSheet("border: 1px solid #b91c1c; color: #b91c1c; padding: 6px 12px; background: #fef2f2;")
+            self._status_badge.setStyleSheet("border: 1px solid #b91c1c; color: #b91c1c; padding: 6px 14px; background: #fef2f2; font-weight: 600; border-radius: 3px;")
 
         # Populate transaction table
         self._tx_table.setRowCount(len(result.transactions))
