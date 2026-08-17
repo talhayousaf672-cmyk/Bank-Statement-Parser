@@ -45,7 +45,7 @@ class EnrichmentUnavailableError(RuntimeError):
 
 def enrich_descriptions(
     parse_result: ParseResult,
-    language: Language,
+    language: Language | None = None,
     api_key: str | None = None,
 ) -> ParseResult:
     """Enrich transaction descriptions using Llama via Groq.
@@ -58,7 +58,11 @@ def enrich_descriptions(
     except ValueError as exc:
         raise EnrichmentUnavailableError(str(exc)) from exc
 
-    enriched_descriptions = _call_llama(client, parse_result.transactions, language)
+    target_language = _coerce_language(language or parse_result.metadata.language)
+    enriched_descriptions = []
+    for start in range(0, len(parse_result.transactions), _ENRICH_BATCH_SIZE):
+        batch = parse_result.transactions[start:start + _ENRICH_BATCH_SIZE]
+        enriched_descriptions.extend(_call_llama(client, batch, target_language))
 
     enriched_transactions = [
         tx.model_copy(update={"description": new_desc})
@@ -112,3 +116,17 @@ def _call_llama(client, transactions: list[Transaction], language: Language) -> 
 
     # Fallback: return original descriptions unchanged
     return [tx.description for tx in transactions]
+
+
+def _coerce_language(language: Language | str | None) -> Language:
+    if isinstance(language, Language):
+        return language
+    if isinstance(language, str):
+        try:
+            return Language(language)
+        except ValueError:
+            try:
+                return Language[language.upper()]
+            except KeyError:
+                return Language.ENGLISH
+    return Language.ENGLISH

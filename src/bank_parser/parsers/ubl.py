@@ -23,6 +23,7 @@ from bank_parser.core.models import (
     StatementMetadata,
     Transaction,
 )
+from bank_parser.core.bank_detector import detect_bank_id_from_header
 from bank_parser.core.parser import BaseBankParser
 
 _ACCOUNT_RE = re.compile(r"Account Number:\s*([\w\-]+)", re.IGNORECASE)
@@ -31,6 +32,10 @@ _CURRENCY_RE = re.compile(r"Currency:\s*([A-Z]{3})", re.IGNORECASE)
 _PERIOD_RE = re.compile(
     r"Period From:\s*(\d{2}/\d{2}/\d{4})\s+To:\s*(\d{2}/\d{2}/\d{4})",
     re.IGNORECASE,
+)
+_MEEZAN_LAYOUT_RE = re.compile(
+    r"\bNarration\b.*\bCheque/Ref\s+No\b.*\bDebit\b.*\bCredit\b",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
@@ -61,6 +66,12 @@ class UBLParser(BaseBankParser):
     language = Language.SPANISH
 
     def parse(self, normalized_text: str) -> ParseResult:
+        detected_bank_id = detect_bank_id_from_header(normalized_text)
+        if detected_bank_id == "meezan_bank" or _looks_like_meezan_layout(normalized_text):
+            from bank_parser.parsers.meezan_bank import MeezanBankParser
+
+            return MeezanBankParser().parse(normalized_text)
+
         account_number = self._regex(normalized_text, _ACCOUNT_RE)
         account_holder = self._regex(normalized_text, _HOLDER_RE)
         currency = self._regex(normalized_text, _CURRENCY_RE) or "PKR"
@@ -72,7 +83,7 @@ class UBLParser(BaseBankParser):
             period_end = _parse_dmy(pm.group(2))
 
         metadata = StatementMetadata(
-            bank_id=self.bank_id,
+            bank_id=detected_bank_id or self.bank_id,
             language=self.language,
             account_number=account_number,
             account_holder=account_holder,
@@ -155,3 +166,12 @@ class UBLParser(BaseBankParser):
     def _regex(self, text: str, pattern: re.Pattern) -> str | None:
         m = pattern.search(text)
         return m.group(1).strip() if m else None
+
+
+def _looks_like_meezan_layout(normalized_text: str) -> bool:
+    header_text = normalized_text[:5000]
+    if _MEEZAN_LAYOUT_RE.search(header_text):
+        return True
+    lowered = header_text.lower()
+    islamic_markers = ("musharakah", "takaful")
+    return any(marker in lowered for marker in islamic_markers)

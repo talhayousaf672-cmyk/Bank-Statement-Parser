@@ -10,6 +10,10 @@ Uses the 70B model because structured JSON extraction requires high accuracy.
 from __future__ import annotations
 
 import json
+import re
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from typing import Any
 
 from bank_parser.ai.fallback_gate import AiFallbackGateResult, validate_ai_fallback_result
 from bank_parser.ai.groq_client import DEFAULT_MODEL, get_groq_client
@@ -164,8 +168,140 @@ Statement text:
     except json.JSONDecodeError as exc:
         raise ValueError(f"Llama returned invalid JSON: {exc}\n\nRaw response:\n{raw[:500]}") from exc
 
-    parse_result = ParseResult.model_validate(data)
+    parse_result = ParseResult.model_validate(_normalize_legacy_ai_payload(data, bank_id, language))
     return validate_ai_fallback_result(parse_result)
+
+
+def _normalize_legacy_ai_payload(
+    data: dict[str, Any],
+    bank_id: str,
+    language: Language,
+) -> dict[str, Any]:
+    """Coerce common AI output aliases into the canonical ParseResult schema."""
+    normalized = dict(data)
+    metadata = dict(normalized.get("metadata") or {})
+    metadata["bank_id"] = bank_id
+    metadata["language"] = language.value
+    metadata.setdefault("parser_version", "0.2.0")
+    metadata["statement_period_start"] = _normalize_legacy_date(
+        metadata.get("statement_period_start")
+    )
+    metadata["statement_period_end"] = _normalize_legacy_date(
+        metadata.get("statement_period_end")
+    )
+    normalized["metadata"] = metadata
+
+    normalized["transactions"] = [
+        _normalize_legacy_ai_transaction(tx, metadata)
+        for tx in normalized.get("transactions") or []
+        if isinstance(tx, dict)
+    ]
+    normalized.setdefault("review_flags", [])
+    return normalized
+
+
+def _normalize_legacy_ai_transaction(
+    tx: dict[str, Any],
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(tx)
+
+    _copy_first_present(normalized, "transaction_date", ("date", "txn_date", "posting_date"))
+    _copy_first_present(normalized, "value_date", ("val_date",))
+    _copy_first_present(
+        normalized,
+        "description",
+        ("details", "particulars", "narration", "transaction_details", "transaction_description"),
+    )
+    _copy_first_present(normalized, "reference", ("ref", "cheque_no", "instrument_no"))
+    _copy_first_present(normalized, "balance", ("available_balance", "closing_balance", "running_balance"))
+    normalized["transaction_date"] = _normalize_legacy_date(normalized.get("transaction_date"))
+    normalized["value_date"] = _normalize_legacy_date(normalized.get("value_date"))
+
+    debit = _parse_decimal(normalized.get("debit"))
+    credit = _parse_decimal(normalized.get("credit"))
+    amount = _parse_decimal(normalized.get("amount"))
+
+    if amount is None:
+        if debit is not None:
+            amount = -abs(debit)
+            normalized["debit"] = abs(debit)
+        elif credit is not None:
+            amount = abs(credit)
+            normalized["credit"] = abs(credit)
+        else:
+            amount = Decimal("0.00")
+    normalized["amount"] = amount
+
+    if debit is None:
+        normalized.pop("debit", None)
+    if credit is None:
+        normalized.pop("credit", None)
+
+    normalized.setdefault("description", "")
+    normalized.setdefault("currency", metadata.get("currency"))
+    return normalized
+
+
+def _copy_first_present(target: dict[str, Any], canonical_key: str, aliases: tuple[str, ...]) -> None:
+    if target.get(canonical_key) not in (None, ""):
+        return
+    for alias in aliases:
+        value = target.get(alias)
+        if value not in (None, ""):
+            target[canonical_key] = value
+            return
+
+
+def _parse_decimal(value: Any) -> Decimal | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, Decimal):
+        return value
+    cleaned = str(value).replace(",", "").strip()
+    if not cleaned or cleaned == "-":
+        return None
+    is_negative = (
+        "-" in cleaned
+        or cleaned.startswith("(") and cleaned.endswith(")")
+        or cleaned.upper().endswith("DR")
+    )
+    cleaned = cleaned.strip("()")
+    match = re.search(r"\d+(?:\.\d+)?", cleaned)
+    if not match:
+        return None
+    try:
+        number = Decimal(match.group(0))
+    except InvalidOperation:
+        return None
+    return -number if is_negative else number
+
+
+def _normalize_legacy_date(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+
+    raw = str(value).strip()
+    cleaned = re.sub(r"\s+", " ", raw.replace(",", " ")).upper()
+    formats = (
+        "%Y-%m-%d",
+        "%d/%m/%y",
+        "%d/%m/%Y",
+        "%d-%m-%y",
+        "%d-%m-%Y",
+        "%d %b %Y",
+        "%d %B %Y",
+        "%d %b %y",
+        "%d %B %y",
+    )
+    for fmt in formats:
+        try:
+            return datetime.strptime(cleaned, fmt).date().isoformat()
+        except ValueError:
+            pass
+    return None
 
 
 def extract_from_markdown(
