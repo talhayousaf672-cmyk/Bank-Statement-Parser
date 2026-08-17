@@ -97,7 +97,7 @@ class BatchParseWorker(QThread):
     file_started = Signal(object, int, int)  # (Path, current_index, total_count)
     file_finished = Signal(object, object, object)  # (Path, ParseResult, ValidationSummary)
     file_error = Signal(object, str)  # (Path, error_message)
-    all_finished = Signal(dict)  # {Path: (ParseResult, ValidationSummary)}
+    all_finished = Signal(object)  # {Path: (ParseResult, ValidationSummary)}
 
     def __init__(self, pdf_paths: Sequence[Path], selected_bank_id: str) -> None:
         super().__init__()
