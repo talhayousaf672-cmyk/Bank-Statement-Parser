@@ -1,0 +1,8 @@
+Bank Name: Generic Bank
+Account Number: 9988776655
+Currency: AED
+Statement Period: 2026-02-01 to 2026-02-28
+
+Date | Description | Reference | Debit | Credit | Balance
+2026-02-01 | Initial Deposit | REF8001 | | 5000.00 | 5000.00
+2026-02-15 | Equipment Purchase | REF8002 | 1200.00 | | 3800.00

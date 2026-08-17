@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bank-statement-parser"
-version = "0.1.0"
+version = "1.0.0"
 description = "Shared bank statement PDF parsing core with desktop and web adapters."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,6 +15,9 @@ dependencies = [
   "openpyxl>=3.1",
   "fastapi>=0.111",
   "uvicorn>=0.30",
+  "groq>=0.9",
+  "python-dotenv>=1.0",
+  "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +26,7 @@ dev = ["pytest>=8.2", "ruff>=0.5"]
 
 [project.scripts]
 bank-parser = "bank_parser.cli:main"
+bank-parser-desktop = "bank_parser.desktop.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

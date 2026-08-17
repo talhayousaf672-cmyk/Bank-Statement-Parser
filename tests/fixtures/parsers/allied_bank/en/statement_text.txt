@@ -1,0 +1,15 @@
+ALLIED BANK LIMITED
+Account Statement
+Account Title: FATIMA MALIK
+Account Number: 010020019001234
+Currency: PKR
+From: 01-01-2026 To: 31-01-2026
+
+VALUE DATE  | TRANSACTION DATE | DESCRIPTION                   | REFERENCE     | DEBIT      | CREDIT     | BALANCE
+01-01-2026  | 01-01-2026       | Opening Balance               |               |            |            | 60000.00
+02-01-2026  | 02-01-2026       | SALARY CREDIT                 | SAL-00201     |            | 110000.00  | 170000.00
+06-01-2026  | 06-01-2026       | K-ELECTRIC BILL PAYMENT       | KEPTA-8821    | 6500.00    |            | 163500.00
+11-01-2026  | 11-01-2026       | CASH WITHDRAWAL ATM           | ATM-2291      | 10000.00   |            | 153500.00
+17-01-2026  | 17-01-2026       | FUND TRANSFER IN              | IBFT-17012026 |            | 20000.00   | 173500.00
+23-01-2026  | 23-01-2026       | GROCERY PURCHASE HYPERSTAR    | POS-6631      | 18500.00   |            | 155000.00
+28-01-2026  | 28-01-2026       | SNGPL GAS BILL                | GAS-3310      | 3200.00    |            | 151800.00

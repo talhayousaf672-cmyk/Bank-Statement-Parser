@@ -1,0 +1,93 @@
+{
+  "metadata": {
+    "bank_id": "hbl",
+    "language": "es",
+    "account_number": "PK36HABB0000123456789012",
+    "account_holder": "JOHN DOE",
+    "currency": "PKR",
+    "statement_period_start": "2026-01-01",
+    "statement_period_end": "2026-01-31",
+    "parser_version": "0.1.0"
+  },
+  "transactions": [
+    {
+      "transaction_date": "2026-01-01",
+      "value_date": "2026-01-01",
+      "description": "SALARY CREDIT",
+      "reference": "SAL-2026-001",
+      "debit": null,
+      "credit": "150000.00",
+      "amount": "150000.00",
+      "balance": "150000.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-05",
+      "value_date": "2026-01-05",
+      "description": "UTILITY BILL PAYMENT - KEPTA",
+      "reference": "BILL-4521",
+      "debit": "8500.00",
+      "credit": null,
+      "amount": "-8500.00",
+      "balance": "141500.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-10",
+      "value_date": "2026-01-10",
+      "description": "ATM CASH WITHDRAWAL",
+      "reference": "ATM-9988",
+      "debit": "20000.00",
+      "credit": null,
+      "amount": "-20000.00",
+      "balance": "121500.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-15",
+      "value_date": "2026-01-15",
+      "description": "FUND TRANSFER RECEIVED",
+      "reference": "TRF-2026-0115",
+      "debit": null,
+      "credit": "50000.00",
+      "amount": "50000.00",
+      "balance": "171500.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-22",
+      "value_date": "2026-01-22",
+      "description": "INSURANCE PREMIUM",
+      "reference": "INS-2026-001",
+      "debit": "5000.00",
+      "credit": null,
+      "amount": "-5000.00",
+      "balance": "166500.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-28",
+      "value_date": "2026-01-28",
+      "description": "ONLINE SHOPPING - DARAZ",
+      "reference": "POS-7741",
+      "debit": "12000.00",
+      "credit": null,
+      "amount": "-12000.00",
+      "balance": "154500.00",
+      "currency": "PKR",
+      "confidence": 1.0,
+      "review_flags": []
+    }
+  ],
+  "review_flags": []
+}

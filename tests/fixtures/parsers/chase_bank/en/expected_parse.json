@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "bank_id": "chase_bank",
+    "language": "es",
+    "account_number": "9876543210",
+    "currency": "USD",
+    "statement_period": "01/01/2026 THROUGH 01/31/2026"
+  },
+  "transactions": [
+    {
+      "transaction_date": "2026-01-05",
+      "value_date": null,
+      "description": "PAYROLL DIRECT DEPOSIT",
+      "reference": null,
+      "debit": null,
+      "credit": "2500.00",
+      "amount": "2500.00",
+      "balance": "2500.00",
+      "currency": "USD",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-12",
+      "value_date": null,
+      "description": "GROCERY MARKET PURCHASE",
+      "reference": null,
+      "debit": "120.50",
+      "credit": null,
+      "amount": "-120.50",
+      "balance": "2379.50",
+      "currency": "USD",
+      "confidence": 1.0,
+      "review_flags": []
+    },
+    {
+      "transaction_date": "2026-01-20",
+      "value_date": null,
+      "description": "ELECTRIC UTILITY BILL",
+      "reference": null,
+      "debit": "85.00",
+      "credit": null,
+      "amount": "-85.00",
+      "balance": "2294.50",
+      "currency": "USD",
+      "confidence": 1.0,
+      "review_flags": []
+    }
+  ],
+  "review_flags": [],
+  "parser_version": "0.1.0"
+}

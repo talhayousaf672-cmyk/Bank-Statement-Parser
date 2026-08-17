@@ -1,0 +1,9 @@
+Bank Name: Generic Bank
+Account Number: 1234567890
+Currency: USD
+Statement Period: 2026-01-01 to 2026-01-31
+
+Date | Description | Reference | Debit | Credit | Balance
+2026-01-05 | Opening Balance Deposit | REF1001 | | 1000.00 | 1000.00
+2026-01-10 | Software Subscription | REF1002 | 50.00 | | 950.00
+2026-01-15 | Consulting Fee Received | REF1003 | | 500.00 | 1450.00

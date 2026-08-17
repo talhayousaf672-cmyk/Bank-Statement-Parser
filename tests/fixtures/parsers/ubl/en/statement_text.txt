@@ -1,0 +1,15 @@
+UNITED BANK LIMITED
+ACCOUNT STATEMENT
+Account Number: 0332-1234567-001
+Account Holder: MOHSIN RAZA
+Currency: PKR
+Period From: 01/01/2026 To: 31/01/2026
+
+Txn Date   | Description                      | Ref No       | Withdrawals | Deposits   | Balance
+01/01/2026 | OPENING BALANCE                  |              |             |            | 85000.00
+03/01/2026 | SALARY - NETSOL TECH             | SAL-00123    |             | 120000.00  | 205000.00
+07/01/2026 | ELECTRICITY BILL - LESCO         | LESCO-9921   | 6700.00     |            | 198300.00
+12/01/2026 | ATM WITHDRAWAL GULBERG           | ATM-4412     | 15000.00    |            | 183300.00
+18/01/2026 | INTER BANK TRANSFER IN           | IBT-20260118 |             | 25000.00   | 208300.00
+25/01/2026 | MOBILE RECHARGE - JAZZ           | MCH-8812     | 500.00      |            | 207800.00
+29/01/2026 | RENT PAYMENT - BAHRIA TOWN       | RNT-0129     | 35000.00    |            | 172800.00

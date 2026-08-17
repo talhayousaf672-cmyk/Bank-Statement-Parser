@@ -1,0 +1,17 @@
+Bank of America
+Checking Account Statement
+Account Number: 325070760-3
+Account Holder: EMILY JOHNSON
+Currency: USD
+Statement Period: 01/01/2026 through 01/31/2026
+
+Transactions
+Date    Description                                          Amount      Balance
+01/01   Beginning Balance                                               3800.00
+01/03   Direct Deposit AMAZON.COM                           +2900.00    6700.00
+01/06   Debit Card Purchase STARBUCKS #2910                 -8.45       6691.55
+01/11   Online Bill Payment AT&T                            -95.00      6596.55
+01/16   Zelle From MICHAEL JOHNSON                          +250.00     6846.55
+01/20   ATM Withdrawal 003290                               -200.00     6646.55
+01/24   Debit Card Purchase COSTCO WHSE #0112               -187.62     6458.93
+01/29   Transfer to Savings 334                             -500.00     5958.93

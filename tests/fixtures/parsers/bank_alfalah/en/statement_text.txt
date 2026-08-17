@@ -1,0 +1,15 @@
+BANK ALFALAH LIMITED
+Account Statement
+Name: BILAL AHMED
+IBAN: PK29ALFH1234512345678901
+Currency: PKR
+Period From: 01/01/2026 Period To: 31/01/2026
+
+DATE       | NARRATION                         | REF NO        | DEBIT      | CREDIT     | BALANCE
+01/01/2026 | Opening Balance                   |               |            |            | 45000.00
+03/01/2026 | SALARY RECEIVED                   | SAL-BA-2601   |            | 95000.00   | 140000.00
+07/01/2026 | PTCL BROADBAND BILL               | PTCL-7733     | 3500.00    |            | 136500.00
+10/01/2026 | CASH WITHDRAWAL GULBERG BRANCH    | ATM-BA-1001   | 20000.00   |            | 116500.00
+14/01/2026 | IBFT FROM MOHSIN ALI              | IBF-14012026  |            | 12000.00   | 128500.00
+19/01/2026 | INSURANCE PREMIUM JUBILEE         | INS-2601      | 5000.00    |            | 123500.00
+25/01/2026 | ONLINE SHOPPING AMAZON.PK         | POS-BA-8812   | 14000.00   |            | 109500.00
