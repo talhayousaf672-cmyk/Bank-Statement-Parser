@@ -130,7 +130,10 @@ async def parse_statement(
     except Exception:
         pass  # Spatial engine unavailable or failed — fall through to legacy path
     finally:
-        tmp_path.unlink(missing_ok=True)  # PDF no longer needed after extraction
+        try:
+            tmp_path.unlink(missing_ok=True)  # PDF no longer needed after extraction
+        except Exception:
+            pass  # Windows file lock from unclosed Camelot handle
 
     if markdown_table:
         # New path: clean Markdown table → AI structures it
